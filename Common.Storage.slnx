@@ -1,7 +1,5 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/Common.Storage/Common.Storage.csproj" />
-  </Folder>
+  <Project Path="Common.Storage.csproj" />
   <Folder Name="/tests/">
     <Project Path="tests/Common.Storage.Tests/Common.Storage.Tests.csproj" />
   </Folder>
