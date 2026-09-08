@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Common.Storage</RootNamespace>
+    <PackageId>Common.Storage</PackageId>
+    <Description>Shared local-first file storage contracts and filesystem provider.</Description>
+  </PropertyGroup>
+</Project>
