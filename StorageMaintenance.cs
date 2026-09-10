@@ -12,6 +12,11 @@ public sealed record StorageMaintenanceResult(
     int VersionsRemoved,
     long BytesReclaimed);
 
+public sealed record StoragePurgeResult(
+    bool CurrentFileRemoved,
+    int VersionsRemoved,
+    long BytesReclaimed);
+
 public interface IVersionedFileStorage : IFileStorage
 {
     Task<Stream> OpenVersionAsync(string storageKey, int version, CancellationToken cancellationToken = default);
@@ -21,4 +26,9 @@ public interface IVersionedFileStorage : IFileStorage
 public interface IStorageMaintenance
 {
     Task<StorageMaintenanceResult> RunMaintenanceAsync(StorageMaintenanceOptions options, CancellationToken cancellationToken = default);
+}
+
+public interface IStorageLifecycle
+{
+    Task<StoragePurgeResult> PurgeAsync(string storageKey, CancellationToken cancellationToken = default);
 }
