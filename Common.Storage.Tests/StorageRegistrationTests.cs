@@ -19,9 +19,11 @@ public sealed class StorageRegistrationTests : IDisposable
         IFileStorage fileStorage = provider.GetRequiredService<IFileStorage>();
         IVersionedFileStorage versioned = provider.GetRequiredService<IVersionedFileStorage>();
         IStorageMaintenance maintenance = provider.GetRequiredService<IStorageMaintenance>();
+        IStorageLifecycle lifecycle = provider.GetRequiredService<IStorageLifecycle>();
 
         Assert.Same(fileStorage, versioned);
         Assert.Same(fileStorage, maintenance);
+        Assert.Same(fileStorage, lifecycle);
         Assert.IsType<LocalFileStorage>(fileStorage);
     }
 
