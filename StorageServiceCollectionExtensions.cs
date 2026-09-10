@@ -9,7 +9,11 @@ public static class StorageServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
 
-        services.AddSingleton<IFileStorage>(_ => new LocalFileStorage(rootPath));
+        services.AddSingleton<LocalFileStorage>(_ => new LocalFileStorage(rootPath));
+        services.AddSingleton<IFileStorage>(provider => provider.GetRequiredService<LocalFileStorage>());
+        services.AddSingleton<IVersionedFileStorage>(provider => provider.GetRequiredService<LocalFileStorage>());
+        services.AddSingleton<IStorageMaintenance>(provider => provider.GetRequiredService<LocalFileStorage>());
+        services.AddHealthChecks().AddCheck<StorageHealthCheck>("common-storage");
         return services;
     }
 }
