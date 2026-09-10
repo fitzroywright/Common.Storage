@@ -29,6 +29,7 @@ public sealed class StorageRegistrationTests : IDisposable
     public async Task AddCommonStorage_RegistersHealthyAspNetHealthCheck()
     {
         ServiceCollection services = new();
+        services.AddLogging();
         services.AddCommonStorage(root);
 
         using ServiceProvider provider = services.BuildServiceProvider();
