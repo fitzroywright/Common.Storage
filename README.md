@@ -2,6 +2,10 @@
 
 Shared .NET 10 storage component for application file storage.
 
+## Repository policy
+
+`main` is the authoritative trunk and the only branch that should be used for ongoing development, integration, packaging, and releases. Older development and layout-flattening branches are historical once their work has been incorporated into `main`.
+
 ## Implemented scope
 
 - Stable `IFileStorage` contract for store/read/delete/metadata/version history/health.
@@ -78,9 +82,11 @@ StoragePurgeResult result = await lifecycle.PurgeAsync("documents/123/file.pdf")
 - A healthy provider must successfully write and read back its health probe.
 - Deleting a logical current file does not silently erase immutable historical versions; purge is the explicit irreversible operation.
 
-## Shared filesystem note
+## Shared filesystem and production validation
 
-The local provider uses exclusive file handles for cross-process serialization. This is appropriate for local filesystems and mounted SMB/NFS targets only when the mount/server honors exclusive file-lock semantics consistently. Before using a shared NAS path for multiple application nodes, run an integration test against the exact production mount and failover configuration.
+The local provider uses exclusive file handles for cross-process serialization. This is appropriate for local filesystems and mounted SMB/NFS targets only when the mount/server honors exclusive file-lock semantics consistently.
+
+Before using a shared NAS path for multiple application nodes, run an integration test against the exact production mount and failover configuration. Production validation should also prove storage disappearance -> controlled fault/health failure -> storage restoration -> successful subsequent operation.
 
 ## Consumer responsibilities
 
@@ -93,8 +99,12 @@ Common.Storage stores bytes and storage metadata. The application remains respon
 - backup, replication and disaster recovery of the underlying storage target;
 - encryption-at-rest policy for the filesystem or storage appliance.
 
-RequestPortal already layers upload validation, malware scanning, authorization, business retention metadata and auditing above Common.Storage. Studio uses Common.Storage for attachment persistence. Consumers should prefer DI-resolved `IFileStorage` rather than constructing a provider directly so health, maintenance and future provider substitution remain centralized.
+RequestPortal layers upload validation, malware scanning, authorization, business retention metadata and auditing above Common.Storage. Studio uses Common.Storage for attachment persistence. Consumers should prefer DI-resolved `IFileStorage` rather than constructing a provider directly so health, maintenance and future provider substitution remain centralized.
 
 ## Backup and restore
 
 Infrastructure-level backup/restore remains an operations responsibility for the underlying storage target. `IVersionedFileStorage.RestoreVersionAsync` is application-level logical version recovery and is not a substitute for filesystem/NAS backup.
+
+## Current maturity
+
+The local provider, versioning, concurrency controls, integrity checks, maintenance, purge lifecycle, health integration, safety protections, and automated tests are implemented on `main`. Remaining work is primarily infrastructure proof against the intended SMB/NFS/TrueNAS environment, especially cross-process locking, multi-node access/failover, and disappearance/recovery behavior.
