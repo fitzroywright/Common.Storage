@@ -109,6 +109,10 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
         try
         {
             string path = ResolveLogicalPath(normalizedKey);
+            string versionsPath = path + ".versions";
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            Directory.CreateDirectory(versionsPath);
+            await using FileStream interprocessLock = await AcquireInterprocessLockAsync(versionsPath, cancellationToken);
             DeleteIfExists(path);
             DeleteIfExists(path + ".json");
         }
@@ -134,7 +138,7 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
         }
     }
 
-    public Task<StorageMaintenanceResult> RunMaintenanceAsync(StorageMaintenanceOptions options, CancellationToken cancellationToken = default)
+    public async Task<StorageMaintenanceResult> RunMaintenanceAsync(StorageMaintenanceOptions options, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
         if (options.StaleTemporaryFileAge < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(options));
@@ -149,7 +153,9 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!IsTemporaryFile(path) || File.GetLastWriteTimeUtc(path) > cutoffUtc) continue;
-            bytesReclaimed += DeleteAndMeasure(path);
+            long removed = TryDeleteInactiveFile(path);
+            if (removed < 0) continue;
+            bytesReclaimed += removed;
             temporaryFilesRemoved++;
         }
 
@@ -158,6 +164,7 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
             foreach (string versionsPath in Directory.EnumerateDirectories(rootPath, "*.versions", SearchOption.AllDirectories))
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                await using FileStream interprocessLock = await AcquireInterprocessLockAsync(versionsPath, cancellationToken);
                 List<string> metadataFiles = Directory.EnumerateFiles(versionsPath, "*.json")
                     .OrderByDescending(path => path, StringComparer.Ordinal)
                     .Skip(options.RetainLatestVersions.Value)
@@ -172,7 +179,7 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
             }
         }
 
-        return Task.FromResult(new StorageMaintenanceResult(temporaryFilesRemoved, versionsRemoved, bytesReclaimed));
+        return new StorageMaintenanceResult(temporaryFilesRemoved, versionsRemoved, bytesReclaimed);
     }
 
     private async Task<StoredFile> StoreCoreAsync(StorageWriteRequest request, string normalizedKey, CancellationToken cancellationToken)
@@ -189,6 +196,7 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
         string versionPath = Path.Combine(versionsPath, $"{version:D8}.bin");
         string metadataPath = Path.Combine(versionsPath, $"{version:D8}.json");
         string temporaryPath = versionPath + ".uploading";
+        bool versionCommitted = false;
 
         try
         {
@@ -208,6 +216,7 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
                 StorageMetadata.Freeze(request.Metadata));
 
             await WriteMetadataAsync(metadataPath, stored, cancellationToken);
+            versionCommitted = true;
             await ReplaceCurrentAsync(versionPath, logicalPath, cancellationToken);
             await WriteMetadataAsync(logicalPath + ".json", stored, cancellationToken);
             return stored;
@@ -215,11 +224,21 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
         catch (StorageException)
         {
             DeleteIfExists(temporaryPath);
+            if (!versionCommitted)
+            {
+                DeleteIfExists(versionPath);
+                DeleteIfExists(metadataPath);
+            }
             throw;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             DeleteIfExists(temporaryPath);
+            if (!versionCommitted)
+            {
+                DeleteIfExists(versionPath);
+                DeleteIfExists(metadataPath);
+            }
             throw new StorageException("STORAGE-WRITE-001", $"Unable to store '{request.StorageKey}'.", ex);
         }
     }
@@ -253,9 +272,21 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(storageKey);
         string key = storageKey.Replace('\\', '/').Trim('/');
-        if (string.IsNullOrWhiteSpace(key) || key.Split('/').Any(part => part is "." or ".." || string.IsNullOrWhiteSpace(part)))
+        string[] parts = key.Split('/');
+        if (string.IsNullOrWhiteSpace(key) || parts.Any(part => part is "." or ".." || string.IsNullOrWhiteSpace(part)))
             throw new StorageException("STORAGE-PATH-002", "Storage key is invalid.");
+        if (parts.Any(ContainsUnsafePathCharacters))
+            throw new StorageException("STORAGE-PATH-005", "Storage key contains characters that are unsafe across supported filesystems.");
         return key;
+    }
+
+    private static bool ContainsUnsafePathCharacters(string part)
+    {
+        foreach (char value in part)
+        {
+            if (char.IsControl(value) || value is ':' or '*' or '?' or '"' or '<' or '>' or '|') return true;
+        }
+        return false;
     }
 
     private static string NormalizeContentType(string contentType)
@@ -398,6 +429,29 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
         => path.EndsWith(".uploading", StringComparison.OrdinalIgnoreCase)
            || path.EndsWith(".writing", StringComparison.OrdinalIgnoreCase)
            || path.EndsWith(".replacing", StringComparison.OrdinalIgnoreCase);
+
+    private static long TryDeleteInactiveFile(string path)
+    {
+        if (!File.Exists(path)) return 0;
+        try
+        {
+            long length;
+            using (FileStream stream = new(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                length = stream.Length;
+            }
+            File.Delete(path);
+            return length;
+        }
+        catch (IOException)
+        {
+            return -1;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return -1;
+        }
+    }
 
     private static long DeleteAndMeasure(string path)
     {
