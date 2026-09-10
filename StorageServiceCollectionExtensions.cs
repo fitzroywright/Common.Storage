@@ -13,6 +13,7 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<IFileStorage>(provider => provider.GetRequiredService<LocalFileStorage>());
         services.AddSingleton<IVersionedFileStorage>(provider => provider.GetRequiredService<LocalFileStorage>());
         services.AddSingleton<IStorageMaintenance>(provider => provider.GetRequiredService<LocalFileStorage>());
+        services.AddSingleton<IStorageLifecycle>(provider => provider.GetRequiredService<LocalFileStorage>());
         services.AddHealthChecks().AddCheck<StorageHealthCheck>("common-storage");
         return services;
     }
