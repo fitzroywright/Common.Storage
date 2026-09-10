@@ -49,6 +49,22 @@ public sealed class LocalFileStorageTests : IDisposable
     }
 
     [Fact]
+    public async Task ConcurrentWritesAcrossProviderInstances_AreSerializedIntoDistinctVersions()
+    {
+        LocalFileStorage storageA = new(root);
+        LocalFileStorage storageB = new(root);
+        Task<StoredFile>[] writes = Enumerable.Range(1, 12)
+            .Select(index => (index % 2 == 0 ? storageA : storageB)
+                .StoreAsync(Request("shared/concurrent.bin", $"value-{index}")))
+            .ToArray();
+
+        StoredFile[] stored = await Task.WhenAll(writes);
+
+        Assert.Equal(Enumerable.Range(1, 12), stored.Select(item => item.Version).Order());
+        Assert.Equal(12, (await storageA.GetVersionsAsync("shared/concurrent.bin")).Count);
+    }
+
+    [Fact]
     public async Task OpenVersionAndRestoreVersion_PreserveHistoryAndIntegrity()
     {
         LocalFileStorage storage = new(root);
