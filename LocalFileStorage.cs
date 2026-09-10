@@ -8,6 +8,7 @@ namespace Common.Storage;
 public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenance
 {
     private const int BufferSize = 128 * 1024;
+    private const int InterprocessLockRetryMilliseconds = 25;
     private readonly string rootPath;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> keyLocks = new(StringComparer.OrdinalIgnoreCase);
 
@@ -183,6 +184,7 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
         Directory.CreateDirectory(versionsPath);
         EnsureNoReparsePoints(versionsPath);
 
+        await using FileStream interprocessLock = await AcquireInterprocessLockAsync(versionsPath, cancellationToken);
         int version = NextVersion(versionsPath);
         string versionPath = Path.Combine(versionsPath, $"{version:D8}.bin");
         string metadataPath = Path.Combine(versionsPath, $"{version:D8}.json");
@@ -265,6 +267,29 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
         foreach (string path in Directory.EnumerateFiles(versionsPath, "*.json"))
             if (int.TryParse(Path.GetFileNameWithoutExtension(path), out int value)) maximum = Math.Max(maximum, value);
         return checked(maximum + 1);
+    }
+
+    private static async Task<FileStream> AcquireInterprocessLockAsync(string versionsPath, CancellationToken cancellationToken)
+    {
+        string lockPath = Path.Combine(versionsPath, ".common-storage.lock");
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                return new FileStream(
+                    lockPath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None,
+                    1,
+                    FileOptions.Asynchronous | FileOptions.WriteThrough);
+            }
+            catch (IOException)
+            {
+                await Task.Delay(InterprocessLockRetryMilliseconds, cancellationToken);
+            }
+        }
     }
 
     private static async Task<(long Length, string Sha256)> WriteAndHashAsync(Stream source, string path, long? maximumBytes, CancellationToken cancellationToken)
