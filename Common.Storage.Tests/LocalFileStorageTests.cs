@@ -96,10 +96,51 @@ public sealed class LocalFileStorageTests : IDisposable
     }
 
     [Fact]
+    public async Task LargeUpload_IsStreamedInBoundedChunks()
+    {
+        LocalFileStorage storage = new(root);
+        await using TrackingMemoryStream content = new(new byte[2 * 1024 * 1024]);
+
+        StoredFile stored = await storage.StoreAsync(new StorageWriteRequest(
+            "streaming/large.bin",
+            content,
+            "application/octet-stream",
+            "large.bin",
+            "tester",
+            MaximumBytes: 3 * 1024 * 1024));
+
+        Assert.Equal(2 * 1024 * 1024, stored.Length);
+        Assert.InRange(content.MaximumRequestedRead, 1, 128 * 1024);
+    }
+
+    [Fact]
     public async Task PathTraversal_IsRejected()
     {
         LocalFileStorage storage = new(root);
         await Assert.ThrowsAsync<StorageException>(() => storage.StoreAsync(Request("../escape.txt", "bad")));
+    }
+
+    [Fact]
+    public async Task SymlinkEscape_IsRejectedOnUnix()
+    {
+        if (OperatingSystem.IsWindows()) return;
+
+        Directory.CreateDirectory(root);
+        string outside = Path.Combine(Path.GetTempPath(), "common-storage-outside", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(outside);
+        string link = Path.Combine(root, "linked");
+        Directory.CreateSymbolicLink(link, outside);
+        try
+        {
+            LocalFileStorage storage = new(root);
+            StorageException exception = await Assert.ThrowsAsync<StorageException>(() => storage.StoreAsync(Request("linked/escape.txt", "bad")));
+            Assert.Equal("STORAGE-PATH-004", exception.Code);
+        }
+        finally
+        {
+            if (Directory.Exists(link)) Directory.Delete(link);
+            if (Directory.Exists(outside)) Directory.Delete(outside, true);
+        }
     }
 
     [Fact]
@@ -129,11 +170,35 @@ public sealed class LocalFileStorageTests : IDisposable
         Assert.True(health.Writable);
     }
 
+    [Fact]
+    public async Task HealthProbe_ReportsUnavailableWhenStorageRootDisappears()
+    {
+        LocalFileStorage storage = new(root);
+        Directory.Delete(root, true);
+
+        StorageHealth health = await storage.CheckHealthAsync();
+
+        Assert.False(health.Available);
+        Assert.False(health.Writable);
+        Assert.False(string.IsNullOrWhiteSpace(health.Error));
+    }
+
     private static StorageWriteRequest Request(string key, string value)
         => new(key, new MemoryStream(Encoding.UTF8.GetBytes(value)), "application/octet-stream", Path.GetFileName(key), "tester");
 
     public void Dispose()
     {
         if (Directory.Exists(root)) Directory.Delete(root, true);
+    }
+
+    private sealed class TrackingMemoryStream(byte[] buffer) : MemoryStream(buffer, writable: false)
+    {
+        public int MaximumRequestedRead { get; private set; }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            MaximumRequestedRead = Math.Max(MaximumRequestedRead, buffer.Length);
+            return base.ReadAsync(buffer, cancellationToken);
+        }
     }
 }
