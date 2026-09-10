@@ -36,6 +36,57 @@ public sealed class LocalFileStorageTests : IDisposable
     }
 
     [Fact]
+    public async Task ConcurrentWritesToSameKey_AreSerializedIntoDistinctVersions()
+    {
+        LocalFileStorage storage = new(root);
+        Task<StoredFile>[] writes = Enumerable.Range(1, 8)
+            .Select(index => storage.StoreAsync(Request("concurrent.bin", $"value-{index}")))
+            .ToArray();
+
+        StoredFile[] stored = await Task.WhenAll(writes);
+        Assert.Equal(Enumerable.Range(1, 8), stored.Select(item => item.Version).Order());
+        Assert.Equal(8, (await storage.GetVersionsAsync("concurrent.bin")).Count);
+    }
+
+    [Fact]
+    public async Task OpenVersionAndRestoreVersion_PreserveHistoryAndIntegrity()
+    {
+        LocalFileStorage storage = new(root);
+        await storage.StoreAsync(Request("restore.bin", "original"));
+        await storage.StoreAsync(Request("restore.bin", "replacement"));
+
+        await using (Stream version = await storage.OpenVersionAsync("restore.bin", 1))
+        using (StreamReader reader = new(version))
+            Assert.Equal("original", await reader.ReadToEndAsync());
+
+        StoredFile restored = await storage.RestoreVersionAsync("restore.bin", 1, "operator");
+        Assert.Equal(3, restored.Version);
+        Assert.Equal("1", restored.Metadata["RestoredFromVersion"]);
+        await using Stream current = await storage.OpenReadAsync("restore.bin");
+        using StreamReader currentReader = new(current);
+        Assert.Equal("original", await currentReader.ReadToEndAsync());
+    }
+
+    [Fact]
+    public async Task Maintenance_RemovesStaleTemporaryFilesAndOldVersions()
+    {
+        LocalFileStorage storage = new(root);
+        await storage.StoreAsync(Request("retained.bin", "one"));
+        await storage.StoreAsync(Request("retained.bin", "two"));
+        await storage.StoreAsync(Request("retained.bin", "three"));
+        string stale = Path.Combine(root, "orphan.uploading");
+        await File.WriteAllTextAsync(stale, "orphan");
+        File.SetLastWriteTimeUtc(stale, DateTime.UtcNow.AddDays(-2));
+
+        StorageMaintenanceResult result = await storage.RunMaintenanceAsync(new StorageMaintenanceOptions(TimeSpan.FromHours(1), 2));
+
+        Assert.Equal(1, result.TemporaryFilesRemoved);
+        Assert.Equal(1, result.VersionsRemoved);
+        Assert.False(File.Exists(stale));
+        Assert.Equal(2, (await storage.GetVersionsAsync("retained.bin")).Count);
+    }
+
+    [Fact]
     public async Task OversizeUpload_FailsWithoutPublishingCurrentFile()
     {
         LocalFileStorage storage = new(root);
@@ -58,6 +109,15 @@ public sealed class LocalFileStorageTests : IDisposable
         await storage.StoreAsync(Request("integrity.bin", "good"));
         await File.WriteAllTextAsync(Path.Combine(root, "integrity.bin"), "tampered");
         await Assert.ThrowsAsync<StorageException>(() => storage.OpenReadAsync("integrity.bin"));
+    }
+
+    [Fact]
+    public async Task CorruptHistoricalVersion_IsDetectedOnRead()
+    {
+        LocalFileStorage storage = new(root);
+        await storage.StoreAsync(Request("history.bin", "good"));
+        await File.WriteAllTextAsync(Path.Combine(root, "history.bin.versions", "00000001.bin"), "tampered");
+        await Assert.ThrowsAsync<StorageException>(() => storage.OpenVersionAsync("history.bin", 1));
     }
 
     [Fact]
