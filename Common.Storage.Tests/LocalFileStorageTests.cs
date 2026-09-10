@@ -65,6 +65,35 @@ public sealed class LocalFileStorageTests : IDisposable
     }
 
     [Fact]
+    public async Task DeleteAcrossProviderInstances_WaitsForActiveWriter()
+    {
+        LocalFileStorage writer = new(root);
+        LocalFileStorage deleter = new(root);
+        await using BlockingReadStream source = new(Encoding.UTF8.GetBytes("serialized-write"));
+
+        Task<StoredFile> write = writer.StoreAsync(new StorageWriteRequest(
+            "shared/delete-race.bin",
+            source,
+            "application/octet-stream",
+            "delete-race.bin",
+            "writer"));
+
+        await source.ReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Task delete = deleter.DeleteAsync("shared/delete-race.bin");
+        await Task.Delay(100);
+        Assert.False(delete.IsCompleted);
+
+        source.Release();
+        StoredFile stored = await write;
+        await delete;
+
+        Assert.Equal(1, stored.Version);
+        Assert.Null(await writer.GetMetadataAsync("shared/delete-race.bin"));
+        await Assert.ThrowsAsync<StorageException>(() => writer.OpenReadAsync("shared/delete-race.bin"));
+        Assert.Single(await writer.GetVersionsAsync("shared/delete-race.bin"));
+    }
+
+    [Fact]
     public async Task OpenVersionAndRestoreVersion_PreserveHistoryAndIntegrity()
     {
         LocalFileStorage storage = new(root);
@@ -134,6 +163,14 @@ public sealed class LocalFileStorageTests : IDisposable
     {
         LocalFileStorage storage = new(root);
         await Assert.ThrowsAsync<StorageException>(() => storage.StoreAsync(Request("../escape.txt", "bad")));
+    }
+
+    [Fact]
+    public async Task UnsafeCrossPlatformPathCharacters_AreRejected()
+    {
+        LocalFileStorage storage = new(root);
+        StorageException exception = await Assert.ThrowsAsync<StorageException>(() => storage.StoreAsync(Request("safe/file.txt:alternate", "bad")));
+        Assert.Equal("STORAGE-PATH-005", exception.Code);
     }
 
     [Fact]
@@ -215,6 +252,28 @@ public sealed class LocalFileStorageTests : IDisposable
         {
             MaximumRequestedRead = Math.Max(MaximumRequestedRead, buffer.Length);
             return base.ReadAsync(buffer, cancellationToken);
+        }
+    }
+
+    private sealed class BlockingReadStream(byte[] buffer) : MemoryStream(buffer, writable: false)
+    {
+        private readonly TaskCompletionSource readStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource released = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private bool blocked;
+
+        public TaskCompletionSource ReadStarted => readStarted;
+
+        public void Release() => released.TrySetResult();
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> destination, CancellationToken cancellationToken = default)
+        {
+            if (!blocked)
+            {
+                blocked = true;
+                readStarted.TrySetResult();
+                await released.Task.WaitAsync(cancellationToken);
+            }
+            return await base.ReadAsync(destination, cancellationToken);
         }
     }
 }
