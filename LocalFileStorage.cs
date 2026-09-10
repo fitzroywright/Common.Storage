@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace Common.Storage;
 
-public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenance
+public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenance, IStorageLifecycle
 {
     private const int BufferSize = 128 * 1024;
     private const int InterprocessLockRetryMilliseconds = 25;
@@ -122,12 +122,63 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
         }
     }
 
+    public async Task<StoragePurgeResult> PurgeAsync(string storageKey, CancellationToken cancellationToken = default)
+    {
+        string normalizedKey = NormalizeKey(storageKey);
+        SemaphoreSlim keyLock = keyLocks.GetOrAdd(normalizedKey, static _ => new SemaphoreSlim(1, 1));
+        await keyLock.WaitAsync(cancellationToken);
+        try
+        {
+            string path = ResolveLogicalPath(normalizedKey);
+            string versionsPath = path + ".versions";
+            bool currentFileRemoved = File.Exists(path);
+            if (!currentFileRemoved && !File.Exists(path + ".json") && !Directory.Exists(versionsPath))
+            {
+                return new StoragePurgeResult(false, 0, 0);
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            Directory.CreateDirectory(versionsPath);
+            await using FileStream interprocessLock = await AcquireInterprocessLockAsync(versionsPath, cancellationToken);
+
+            long bytesReclaimed = DeleteAndMeasure(path) + DeleteAndMeasure(path + ".json");
+            int versionsRemoved = 0;
+            foreach (string metadataPath in Directory.EnumerateFiles(versionsPath, "*.json").ToArray())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                string binaryPath = Path.ChangeExtension(metadataPath, ".bin");
+                bytesReclaimed += DeleteAndMeasure(binaryPath);
+                bytesReclaimed += DeleteAndMeasure(metadataPath);
+                versionsRemoved++;
+            }
+
+            foreach (string temporaryPath in Directory.EnumerateFiles(versionsPath)
+                .Where(IsTemporaryFile)
+                .ToArray())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                bytesReclaimed += DeleteAndMeasure(temporaryPath);
+            }
+
+            return new StoragePurgeResult(currentFileRemoved, versionsRemoved, bytesReclaimed);
+        }
+        finally
+        {
+            keyLock.Release();
+        }
+    }
+
     public async Task<StorageHealth> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
         string probe = Path.Combine(rootPath, $".health-{Guid.NewGuid():N}");
         try
         {
             await File.WriteAllTextAsync(probe, "ok", cancellationToken);
+            string readBack = await File.ReadAllTextAsync(probe, cancellationToken);
+            if (!string.Equals(readBack, "ok", StringComparison.Ordinal))
+            {
+                return new StorageHealth(true, false, nameof(LocalFileStorage), rootPath, "Storage health probe read-back did not match the written value.");
+            }
             DeleteIfExists(probe);
             return new StorageHealth(true, true, nameof(LocalFileStorage), rootPath);
         }
@@ -135,6 +186,10 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
         {
             DeleteIfExists(probe);
             return new StorageHealth(Directory.Exists(rootPath), false, nameof(LocalFileStorage), rootPath, ex.Message);
+        }
+        finally
+        {
+            DeleteIfExists(probe);
         }
     }
 
