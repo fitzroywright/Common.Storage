@@ -1,3 +1,4 @@
+using Xunit;
 namespace Common.Storage.Tests;
 
 public sealed class ApplicationScopedFileStorageTests
