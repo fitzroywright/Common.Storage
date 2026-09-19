@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="$(CommonRoot)/Common.Diagnostics/Common.Diagnostics.csproj" Condition="Exists('$(CommonRoot)/Common.Diagnostics/Common.Diagnostics.csproj')" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="Common.Storage.Tests/**/*.cs" />
