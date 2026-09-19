@@ -1,3 +1,4 @@
+using Common.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Common.Storage;
@@ -14,6 +15,7 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<IVersionedFileStorage>(provider => provider.GetRequiredService<LocalFileStorage>());
         services.AddSingleton<IStorageMaintenance>(provider => provider.GetRequiredService<LocalFileStorage>());
         services.AddSingleton<IStorageLifecycle>(provider => provider.GetRequiredService<LocalFileStorage>());
+        services.AddScoped<IDiagnosticCheck, CommonStorageDiagnosticCheck>();
         services.AddHealthChecks().AddCheck<StorageHealthCheck>("common-storage");
         return services;
     }
