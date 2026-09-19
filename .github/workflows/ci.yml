@@ -35,7 +35,11 @@ jobs:
         env:
           CommonRoot: ${{ github.workspace }}
 
-      - name: Build
+      - name: Build Debug
+        run: dotnet build Common.Storage.slnx --configuration Debug --no-restore
+        env:
+          CommonRoot: ${{ github.workspace }}
+      - name: Build Release
         run: dotnet build Common.Storage.slnx --configuration Release --no-restore
         env:
           CommonRoot: ${{ github.workspace }}
