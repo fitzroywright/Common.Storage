@@ -41,7 +41,7 @@ public sealed class CommonStorageDiagnosticCheck(IFileStorage storage) : IDiagno
                 DiagnosticStatus.Unknown,
                 "Storage health could not be established.",
                 DateTimeOffset.UtcNow - started,
-                ex);
+                null);
         }
     }
 }
