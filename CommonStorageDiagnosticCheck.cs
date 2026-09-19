@@ -34,7 +34,7 @@ public sealed class CommonStorageDiagnosticCheck(IFileStorage storage) : IDiagno
         {
             throw;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return new DiagnosticResult(
                 Name,
