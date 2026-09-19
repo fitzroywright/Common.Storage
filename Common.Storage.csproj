@@ -13,5 +13,8 @@
     <Compile Remove="Common.Storage.Tests/**/*.cs" />
     <EmbeddedResource Remove="Common.Storage.Tests/**" />
     <None Remove="Common.Storage.Tests/**" />
+    <Compile Remove="Common.Diagnostics/**/*.cs" />
+    <EmbeddedResource Remove="Common.Diagnostics/**" />
+    <None Remove="Common.Diagnostics/**" />
   </ItemGroup>
 </Project>
