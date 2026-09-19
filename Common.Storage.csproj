@@ -3,6 +3,7 @@
     <RootNamespace>Common.Storage</RootNamespace>
     <PackageId>Common.Storage</PackageId>
     <Description>Shared local-first file storage contracts and filesystem provider.</Description>
+    <CommonRoot Condition="'$(CommonRoot)' == ''">$(MSBuildProjectDirectory)/..</CommonRoot>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
