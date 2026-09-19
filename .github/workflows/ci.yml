@@ -19,6 +19,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Checkout Common.Diagnostics
+        uses: actions/checkout@v4
+        with:
+          repository: fitzroywright/Common.Diagnostics
+          path: Common.Diagnostics
+
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
@@ -26,9 +32,15 @@ jobs:
 
       - name: Restore
         run: dotnet restore Common.Storage.slnx
+        env:
+          CommonRoot: ${{ github.workspace }}
 
       - name: Build
         run: dotnet build Common.Storage.slnx --configuration Release --no-restore
+        env:
+          CommonRoot: ${{ github.workspace }}
 
       - name: Test
         run: dotnet test Common.Storage.slnx --configuration Release --no-build
+        env:
+          CommonRoot: ${{ github.workspace }}
