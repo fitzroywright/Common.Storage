@@ -2,7 +2,7 @@ using Common.Diagnostics;
 
 namespace Common.Storage;
 
-public sealed class StorageRootExistsLevelXTest(string rootPath) : ILevelXLocalTest
+public sealed class StorageRootExistsDiagnosticLevelTest(string rootPath) : IDiagnosticLevelLocalTest
 {
     private readonly string rootPath = Path.GetFullPath(string.IsNullOrWhiteSpace(rootPath) ? throw new ArgumentException("Root path is required.", nameof(rootPath)) : rootPath);
     public string TestId => "COMMON.STORAGE.L5.ROOT.EXISTS";
@@ -17,7 +17,7 @@ public sealed class StorageRootExistsLevelXTest(string rootPath) : ILevelXLocalT
             : EngineeringDiagnosticPolicy.Failed(TestId, Name, "Storage root does not exist.", $"Root={rootPath}"));
 }
 
-public sealed class StorageRootReadableLevelXTest(string rootPath) : ILevelXLocalTest
+public sealed class StorageRootReadableDiagnosticLevelTest(string rootPath) : IDiagnosticLevelLocalTest
 {
     private readonly string rootPath = Path.GetFullPath(string.IsNullOrWhiteSpace(rootPath) ? throw new ArgumentException("Root path is required.", nameof(rootPath)) : rootPath);
     public string TestId => "COMMON.STORAGE.L4.ROOT.READABLE";
@@ -41,7 +41,7 @@ public sealed class StorageRootReadableLevelXTest(string rootPath) : ILevelXLoca
     }
 }
 
-public sealed class StorageFreeSpaceLevelXTest(string rootPath) : ILevelXLocalTest
+public sealed class StorageFreeSpaceDiagnosticLevelTest(string rootPath) : IDiagnosticLevelLocalTest
 {
     private readonly string rootPath = Path.GetFullPath(string.IsNullOrWhiteSpace(rootPath) ? throw new ArgumentException("Root path is required.", nameof(rootPath)) : rootPath);
     public string TestId => "COMMON.STORAGE.L4.RESOURCES.FREE_SPACE";
@@ -78,7 +78,7 @@ public sealed class StorageFreeSpaceLevelXTest(string rootPath) : ILevelXLocalTe
     }
 }
 
-public sealed class StorageRoundTripLevelXTest(IFileStorage storage) : ILevelXLocalTest
+public sealed class StorageRoundTripDiagnosticLevelTest(IFileStorage storage) : IDiagnosticLevelLocalTest
 {
     private readonly IFileStorage storage = storage ?? throw new ArgumentNullException(nameof(storage));
     public string TestId => "COMMON.STORAGE.L3.ROUNDTRIP";
@@ -89,13 +89,13 @@ public sealed class StorageRoundTripLevelXTest(IFileStorage storage) : ILevelXLo
 
     public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
     {
-        string key = $"diagnostics/levelx/{Guid.NewGuid():N}.txt";
-        byte[] payload = System.Text.Encoding.UTF8.GetBytes("Aegis LevelX storage probe");
+        string key = $"diagnostics/diagnostic-level/{Guid.NewGuid():N}.txt";
+        byte[] payload = System.Text.Encoding.UTF8.GetBytes("Aegis DiagnosticLevel storage probe");
         try
         {
             await using MemoryStream input = new(payload, writable: false);
             StoredFile stored = await storage.StoreAsync(
-                new StorageWriteRequest(key, input, "text/plain", "levelx.txt", "LevelX"),
+                new StorageWriteRequest(key, input, "text/plain", "diagnostic-level.txt", "DiagnosticLevel"),
                 cancellationToken).ConfigureAwait(false);
 
             await using Stream read = await storage.OpenReadAsync(key, cancellationToken).ConfigureAwait(false);
