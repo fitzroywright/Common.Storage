@@ -74,9 +74,7 @@ public static class StorageServiceCollectionExtensions
         IFileStorage storage,
         string rootPath)
     {
-        services.AddSingleton(storage);
-        services.AddSingleton<IFileStorage>(provider => provider.GetRequiredService(storage.GetType()) as IFileStorage ?? storage);
-        services.AddSingleton(typeof(storage.GetType()), storage);
+        services.AddSingleton<IFileStorage>(storage);
 
         if (storage is IVersionedFileStorage versioned)
             services.AddSingleton<IVersionedFileStorage>(versioned);
