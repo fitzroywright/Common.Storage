@@ -13,7 +13,8 @@ public sealed record SharePointStorageOptions(
     string TenantId,
     string ClientId,
     string ClientSecret,
-    string HostName,
+    string? SiteId,
+    string? HostName,
     string SitePath,
     string? DriveId = null,
     string? DriveName = null,
@@ -49,8 +50,11 @@ public sealed record StorageTargetOptions(
         IConfigurationSection sharePoint = section.GetSection("SharePoint");
         string tenantId = Required(sharePoint, "TenantId", sectionName);
         string clientId = Required(sharePoint, "ClientId", sectionName);
-        string hostName = Required(sharePoint, "HostName", sectionName);
+        string? siteId = Clean(sharePoint["SiteId"]);
+        string? hostName = Clean(sharePoint["HostName"]);
         string sitePath = sharePoint["SitePath"]?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(siteId) && string.IsNullOrWhiteSpace(hostName))
+            throw new InvalidOperationException($"{sectionName}:SharePoint requires SiteId or HostName.");
         string secret = sharePointClientSecret?.Trim() ?? sharePoint["ClientSecret"]?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(secret))
             throw new InvalidOperationException($"{sectionName}:SharePoint client secret is required through the consuming application's secret provider.");
@@ -61,6 +65,7 @@ public sealed record StorageTargetOptions(
                 tenantId,
                 clientId,
                 secret,
+                siteId,
                 hostName,
                 sitePath,
                 Clean(sharePoint["DriveId"]),
