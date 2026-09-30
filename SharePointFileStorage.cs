@@ -74,6 +74,7 @@ public sealed class SharePointFileStorage : IFileStorage
             await EnsureTargetAsync(cancellationToken).ConfigureAwait(false);
             await EnsureFolderPathAsync(ParentFolder(ContentPath(key)), cancellationToken).ConfigureAwait(false);
 
+            GraphStoredItem graphItem;
             await using (FileStream upload = new(
                 temporaryPath,
                 FileMode.Open,
@@ -82,12 +83,22 @@ public sealed class SharePointFileStorage : IFileStorage
                 BufferSize,
                 FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
-                await PutContentAsync(
+                graphItem = await PutContentAsync(
                     ContentPath(key),
                     upload,
                     stored.ContentType,
                     cancellationToken).ConfigureAwait(false);
             }
+
+            Dictionary<string,string> providerMetadata = new(stored.Metadata, StringComparer.OrdinalIgnoreCase)
+            {
+                ["StorageProvider"] = "SharePoint",
+                ["StorageDriveId"] = driveId!,
+                ["StorageItemId"] = graphItem.ItemId
+            };
+            if (!string.IsNullOrWhiteSpace(graphItem.ETag))
+                providerMetadata["StorageETag"] = graphItem.ETag;
+            stored = stored with { Metadata = StorageMetadata.Freeze(providerMetadata) };
 
             string versionMetadataPath = VersionMetadataPath(key, version);
             await EnsureFolderPathAsync(ParentFolder(versionMetadataPath), cancellationToken).ConfigureAwait(false);
@@ -261,7 +272,7 @@ public sealed class SharePointFileStorage : IFileStorage
             await EnsureTargetAsync(cancellationToken).ConfigureAwait(false);
             await EnsureFolderPathAsync(ParentFolder(probeName), cancellationToken).ConfigureAwait(false);
             await using MemoryStream source = new(bytes, writable: false);
-            await PutContentAsync(probeName, source, "text/plain", cancellationToken).ConfigureAwait(false);
+            _ = await PutContentAsync(probeName, source, "text/plain", cancellationToken).ConfigureAwait(false);
 
             HttpResponseMessage response = await SendGraphAsync(
                 HttpMethod.Get,
@@ -307,15 +318,24 @@ public sealed class SharePointFileStorage : IFileStorage
             if (!string.IsNullOrWhiteSpace(driveId))
                 return;
 
-            siteId = options.SitePath.Trim('/') is { Length: > 0 } sitePath
-                ? await GetRequiredStringAsync(
-                    $"{GraphBase}/sites/{Uri.EscapeDataString(options.HostName)}:/{EncodePath(sitePath)}?$select=id",
-                    "id",
-                    cancellationToken).ConfigureAwait(false)
-                : await GetRequiredStringAsync(
-                    $"{GraphBase}/sites/{Uri.EscapeDataString(options.HostName)}?$select=id",
-                    "id",
-                    cancellationToken).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(options.SiteId))
+            {
+                siteId = options.SiteId.Trim();
+            }
+            else
+            {
+                string hostName = options.HostName
+                    ?? throw new StorageException("STORAGE-SHAREPOINT-SITE-001", "SharePoint HostName is required when SiteId is not configured.");
+                siteId = options.SitePath.Trim('/') is { Length: > 0 } sitePath
+                    ? await GetRequiredStringAsync(
+                        $"{GraphBase}/sites/{Uri.EscapeDataString(hostName)}:/{EncodePath(sitePath)}?$select=id",
+                        "id",
+                        cancellationToken).ConfigureAwait(false)
+                    : await GetRequiredStringAsync(
+                        $"{GraphBase}/sites/{Uri.EscapeDataString(hostName)}?$select=id",
+                        "id",
+                        cancellationToken).ConfigureAwait(false);
+            }
 
             if (!string.IsNullOrWhiteSpace(options.DriveId))
             {
@@ -438,7 +458,7 @@ public sealed class SharePointFileStorage : IFileStorage
         }
     }
 
-    private async Task PutContentAsync(string relativePath, Stream content, string contentType, CancellationToken cancellationToken)
+    private async Task<GraphStoredItem> PutContentAsync(string relativePath, Stream content, string contentType, CancellationToken cancellationToken)
     {
         using StreamContent body = new(content);
         body.Headers.ContentType = MediaTypeHeaderValue.Parse(NormalizeContentType(contentType));
@@ -453,14 +473,26 @@ public sealed class SharePointFileStorage : IFileStorage
             response.Dispose();
             throw new StorageException("STORAGE-SHAREPOINT-UPLOAD-001", $"SharePoint upload failed for '{relativePath}': {detail}");
         }
+
+        string json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         response.Dispose();
+        using JsonDocument document = JsonDocument.Parse(json);
+        string itemId = document.RootElement.TryGetProperty("id", out JsonElement idElement)
+            ? idElement.GetString() ?? string.Empty
+            : string.Empty;
+        string? eTag = document.RootElement.TryGetProperty("eTag", out JsonElement eTagElement)
+            ? eTagElement.GetString()
+            : null;
+        if (string.IsNullOrWhiteSpace(itemId))
+            throw new StorageException("STORAGE-SHAREPOINT-UPLOAD-002", "Microsoft Graph upload response did not include an item id.");
+        return new GraphStoredItem(itemId, eTag);
     }
 
     private async Task PutJsonAsync<T>(string relativePath, T value, CancellationToken cancellationToken)
     {
         byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(value);
         await using MemoryStream stream = new(bytes, writable: false);
-        await PutContentAsync(relativePath, stream, "application/json", cancellationToken).ConfigureAwait(false);
+        _ = await PutContentAsync(relativePath, stream, "application/json", cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<T?> GetJsonAsync<T>(string relativePath, CancellationToken cancellationToken)
@@ -604,7 +636,9 @@ public sealed class SharePointFileStorage : IFileStorage
             : $"{GraphBase}/drives/{Uri.EscapeDataString(driveId!)}/root:/{EncodePath(relativeFolder)}:/children";
 
     private string RootDescription() =>
-        $"https://{options.HostName}/{options.SitePath.Trim('/')}/{options.DriveName ?? options.DriveId ?? "default-drive"}/{options.RootFolder.Trim('/')}";
+        !string.IsNullOrWhiteSpace(options.HostName)
+            ? $"https://{options.HostName}/{options.SitePath.Trim('/')}/{options.DriveName ?? options.DriveId ?? "default-drive"}/{options.RootFolder.Trim('/')}"
+            : $"sharepoint://sites/{options.SiteId}/{options.DriveName ?? options.DriveId ?? "default-drive"}/{options.RootFolder.Trim('/')}";
 
     private static string ParentFolder(string path)
     {
@@ -654,7 +688,8 @@ public sealed class SharePointFileStorage : IFileStorage
         ArgumentException.ThrowIfNullOrWhiteSpace(options.TenantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.ClientId);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.ClientSecret);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.HostName);
+        if (string.IsNullOrWhiteSpace(options.SiteId) && string.IsNullOrWhiteSpace(options.HostName))
+            throw new ArgumentException("SharePoint SiteId or HostName is required.", nameof(options));
     }
 
     private static async Task<(long Length, string Sha256)> CopyAndHashAsync(
@@ -717,6 +752,8 @@ public sealed class SharePointFileStorage : IFileStorage
 
         return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
     }
+
+    private sealed record GraphStoredItem(string ItemId, string? ETag);
 
     private static async Task<string> SafeReadBodyAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
