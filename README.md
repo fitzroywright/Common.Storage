@@ -26,6 +26,62 @@ Shared .NET 10 storage component for application file storage.
 - Opt-in hosted maintenance worker for periodic cleanup and version retention.
 - Tests covering normal operation, cross-instance concurrency, delete/write serialization, historical restore, bounded streaming, size limits, traversal, symlink escape, corruption, provider disappearance, maintenance, purge and health registration.
 
+## Storage targets
+
+Common.Storage now has three built-in targets behind the same `IFileStorage` contract:
+
+- `LocalFolder` - local filesystem storage.
+- `NetworkFolder` - UNC or mounted SMB/NFS storage. It uses the same integrity, locking, version and maintenance behavior as the local filesystem provider, so the target filesystem must honor exclusive file locks.
+- `SharePoint` - SharePoint Online document-library storage through Microsoft Graph using an application identity.
+
+Applications select a target at composition time. Feature code should depend on `IFileStorage` and must not construct a provider directly.
+
+```json
+{
+  "Storage": {
+    "Provider": "SharePoint",
+    "Local": {
+      "RootPath": "App_Data/storage"
+    },
+    "NetworkFolder": {
+      "RootPath": "\\\\server\\share\\application"
+    },
+    "SharePoint": {
+      "TenantId": "tenant-guid",
+      "ClientId": "application-guid",
+      "HostName": "contoso.sharepoint.com",
+      "SitePath": "sites/Operations",
+      "DriveName": "Documents",
+      "RootFolder": "Aegis/Application"
+    }
+  }
+}
+```
+
+The consuming application should resolve the SharePoint client secret through its secret provider and pass it to `StorageTargetOptions.FromConfiguration`. Common.Storage deliberately does not own application secret policy.
+
+```csharp
+StorageTargetOptions target = StorageTargetOptions.FromConfiguration(
+    configuration,
+    sharePointClientSecret);
+
+services.AddCommonStorage(target);
+```
+
+A provider can also be supplied by another assembly without changing consumers:
+
+```csharp
+services.AddCommonStorageProvider<MyStorageProvider>();
+```
+
+`PrefixedFileStorage` provides provider-neutral logical sub-roots for applications that want one selected target with separate areas such as `documents`, `attachments`, or `galleries`.
+
+### SharePoint behavior
+
+The SharePoint provider resolves the configured site and document library through Microsoft Graph, creates missing folders, streams content through bounded temporary files for hashing/integrity verification, and keeps Common.Storage metadata under a reserved `.common-storage` folder below the configured root. Application-visible storage keys remain provider-neutral.
+
+The application registration must have Microsoft Graph access that permits read/write operations on the selected SharePoint site. Prefer scoping the application to only the intended site when the tenant's permission model supports that operationally.
+
 ## Registration
 
 ```csharp
