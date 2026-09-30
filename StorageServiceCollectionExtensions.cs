@@ -16,6 +16,7 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<IStorageMaintenance>(provider => provider.GetRequiredService<LocalFileStorage>());
         services.AddSingleton<IStorageLifecycle>(provider => provider.GetRequiredService<LocalFileStorage>());
         services.AddScoped<IDiagnosticCheck, CommonStorageDiagnosticCheck>();
+        services.AddScoped<IDependencyDiagnosticProbe, CommonStorageDependencyProbe>();
         services.AddSingleton<IDiagnosticLevelLocalTest>(_ => new StorageRootExistsDiagnosticLevelTest(rootPath));
         services.AddSingleton<IDiagnosticLevelLocalTest>(_ => new StorageRootReadableDiagnosticLevelTest(rootPath));
         services.AddSingleton<IDiagnosticLevelLocalTest>(_ => new StorageFreeSpaceDiagnosticLevelTest(rootPath));
@@ -103,6 +104,7 @@ public static class StorageServiceCollectionExtensions
     private static void AddProviderDiagnostics(IServiceCollection services)
     {
         services.AddScoped<IDiagnosticCheck, CommonStorageDiagnosticCheck>();
+        services.AddScoped<IDependencyDiagnosticProbe, CommonStorageDependencyProbe>();
         services.AddSingleton<IDiagnosticLevelLocalTest, StorageRoundTripDiagnosticLevelTest>();
         services.AddHealthChecks().AddCheck<StorageHealthCheck>("common-storage");
     }
