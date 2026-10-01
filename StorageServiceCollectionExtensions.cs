@@ -48,6 +48,14 @@ public static class StorageServiceCollectionExtensions
                 services,
                 new SharePointFileStorage(options.SharePoint
                     ?? throw new InvalidOperationException("SharePoint storage requires SharePoint options."))),
+            StorageTargetKind.AzureBlob => AddFileSystemTarget(
+                services,
+                new AzureBlobFileStorage(options.AzureBlob
+                    ?? throw new InvalidOperationException("AzureBlob storage requires AzureBlob options."))),
+            StorageTargetKind.AmazonS3 => AddFileSystemTarget(
+                services,
+                new AmazonS3FileStorage(options.AmazonS3
+                    ?? throw new InvalidOperationException("AmazonS3 storage requires AmazonS3 options."))),
             _ => throw new InvalidOperationException($"Unsupported storage target '{options.Kind}'.")
         };
     }
