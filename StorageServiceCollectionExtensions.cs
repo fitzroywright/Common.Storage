@@ -48,11 +48,11 @@ public static class StorageServiceCollectionExtensions
                 services,
                 new SharePointFileStorage(options.SharePoint
                     ?? throw new InvalidOperationException("SharePoint storage requires SharePoint options."))),
-            StorageTargetKind.AzureBlob => AddFileSystemTarget(
+            StorageTargetKind.AzureBlob => AddCloudTarget(
                 services,
                 new AzureBlobFileStorage(options.AzureBlob
                     ?? throw new InvalidOperationException("AzureBlob storage requires AzureBlob options."))),
-            StorageTargetKind.AmazonS3 => AddFileSystemTarget(
+            StorageTargetKind.AmazonS3 => AddCloudTarget(
                 services,
                 new AmazonS3FileStorage(options.AmazonS3
                     ?? throw new InvalidOperationException("AmazonS3 storage requires AmazonS3 options."))),
@@ -95,6 +95,18 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<IDiagnosticLevelLocalTest>(_ => new StorageRootExistsDiagnosticLevelTest(rootPath));
         services.AddSingleton<IDiagnosticLevelLocalTest>(_ => new StorageRootReadableDiagnosticLevelTest(rootPath));
         services.AddSingleton<IDiagnosticLevelLocalTest>(_ => new StorageFreeSpaceDiagnosticLevelTest(rootPath));
+        AddProviderDiagnostics(services);
+        return services;
+    }
+
+    private static IServiceCollection AddCloudTarget(
+        IServiceCollection services,
+        IFileStorage storage)
+    {
+        services.AddSingleton(storage);
+        services.AddSingleton<IFileStorage>(storage);
+        if (storage is IVersionedFileStorage versioned)
+            services.AddSingleton<IVersionedFileStorage>(versioned);
         AddProviderDiagnostics(services);
         return services;
     }
