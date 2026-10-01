@@ -128,7 +128,7 @@ public sealed class AzureBlobFileStorage : IVersionedFileStorage
     {
         string key = CloudStorageSupport.NormalizeKey(storageKey);
         await container.GetBlobClient(CloudStorageSupport.Prefix(rootFolder, key))
-            .DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, cancellationToken);
+            .DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, conditions: null, cancellationToken: cancellationToken);
         await container.GetBlobClient(CloudStorageSupport.MetadataKey(rootFolder, key))
             .DeleteIfExistsAsync(cancellationToken: cancellationToken);
     }
