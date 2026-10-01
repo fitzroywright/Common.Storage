@@ -10,6 +10,10 @@
     <ProjectReference Include="$(CommonRoot)/Common.Diagnostics/Common.Diagnostics.csproj" Condition="Exists('$(CommonRoot)/Common.Diagnostics/Common.Diagnostics.csproj')" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.30.0" />
+    <PackageReference Include="AWSSDK.S3" Version="4.0.103.4" />
+  </ItemGroup>
+  <ItemGroup>
     <Compile Remove="Common.Storage.Tests/**/*.cs" />
     <EmbeddedResource Remove="Common.Storage.Tests/**" />
     <None Remove="Common.Storage.Tests/**" />
