@@ -6,8 +6,23 @@ public enum StorageTargetKind
 {
     LocalFolder,
     NetworkFolder,
-    SharePoint
+    SharePoint,
+    AzureBlob,
+    AmazonS3
 }
+
+public sealed record AzureBlobStorageOptions(
+    string ConnectionString,
+    string ContainerName,
+    string RootFolder = "");
+
+public sealed record AmazonS3StorageOptions(
+    string BucketName,
+    string Region,
+    string RootFolder = "",
+    string? AccessKeyId = null,
+    string? SecretAccessKey = null,
+    string? ServiceUrl = null);
 
 public sealed record SharePointStorageOptions(
     string TenantId,
@@ -23,7 +38,9 @@ public sealed record SharePointStorageOptions(
 public sealed record StorageTargetOptions(
     StorageTargetKind Kind,
     string? RootPath = null,
-    SharePointStorageOptions? SharePoint = null)
+    SharePointStorageOptions? SharePoint = null,
+    AzureBlobStorageOptions? AzureBlob = null,
+    AmazonS3StorageOptions? AmazonS3 = null)
 {
     public static StorageTargetOptions FromConfiguration(
         IConfiguration configuration,
@@ -45,6 +62,35 @@ public sealed record StorageTargetOptions(
             if (string.IsNullOrWhiteSpace(root))
                 throw new InvalidOperationException($"{sectionName}:{key} is required for {kind} storage.");
             return new StorageTargetOptions(kind, root);
+        }
+
+        if (kind == StorageTargetKind.AzureBlob)
+        {
+            IConfigurationSection azure = section.GetSection("AzureBlob");
+            string connectionString = sharePointClientSecret?.Trim() ?? azure["ConnectionString"]?.Trim() ?? string.Empty;
+            string container = Required(azure, "ContainerName", sectionName);
+            return new StorageTargetOptions(
+                kind,
+                AzureBlob: new AzureBlobStorageOptions(
+                    connectionString,
+                    container,
+                    Clean(azure["RootFolder"]) ?? string.Empty));
+        }
+
+        if (kind == StorageTargetKind.AmazonS3)
+        {
+            IConfigurationSection aws = section.GetSection("AmazonS3");
+            string bucket = Required(aws, "BucketName", sectionName);
+            string region = aws["Region"]?.Trim() ?? "us-east-1";
+            return new StorageTargetOptions(
+                kind,
+                AmazonS3: new AmazonS3StorageOptions(
+                    bucket,
+                    region,
+                    Clean(aws["RootFolder"]) ?? string.Empty,
+                    Clean(aws["AccessKeyId"]),
+                    sharePointClientSecret?.Trim() ?? Clean(aws["SecretAccessKey"]),
+                    Clean(aws["ServiceUrl"])));
         }
 
         IConfigurationSection sharePoint = section.GetSection("SharePoint");
