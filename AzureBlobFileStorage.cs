@@ -46,7 +46,7 @@ public sealed class AzureBlobFileStorage : IVersionedFileStorage
             HttpHeaders = new BlobHttpHeaders { ContentType = stored.ContentType }
         }, cancellationToken);
         BlobClient versionBlob = container.GetBlobClient(CloudStorageSupport.VersionMetadataKey(rootFolder, key, version).Replace(".json", ".bin", StringComparison.Ordinal));
-        await versionBlob.UploadAsync(new MemoryStream(bytes, writable: false), overwrite: true, cancellationToken);
+        await versionBlob.UploadAsync(new MemoryStream(bytes, writable: false), overwrite: true, cancellationToken: cancellationToken);
 
         await PutMetadataAsync(CloudStorageSupport.VersionMetadataKey(rootFolder, key, version), stored, cancellationToken);
         await PutMetadataAsync(CloudStorageSupport.MetadataKey(rootFolder, key), stored, cancellationToken);
@@ -116,7 +116,7 @@ public sealed class AzureBlobFileStorage : IVersionedFileStorage
         string key = CloudStorageSupport.NormalizeKey(storageKey);
         string prefix = CloudStorageSupport.VersionMetadataPrefix(rootFolder, key);
         List<StoredFile> values = [];
-        await foreach (BlobItem item in container.GetBlobsAsync(prefix: prefix, cancellationToken: cancellationToken))
+        await foreach (BlobItem item in container.GetBlobsAsync(BlobTraits.None, BlobStates.None, prefix, cancellationToken))
         {
             StoredFile? value = await GetJsonMetadataAsync(item.Name, cancellationToken);
             if (value is not null) values.Add(value);
