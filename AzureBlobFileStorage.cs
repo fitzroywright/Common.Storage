@@ -45,6 +45,8 @@ public sealed class AzureBlobFileStorage : IVersionedFileStorage
         {
             HttpHeaders = new BlobHttpHeaders { ContentType = stored.ContentType }
         }, cancellationToken);
+        BlobClient versionBlob = container.GetBlobClient(CloudStorageSupport.VersionMetadataKey(rootFolder, key, version).Replace(".json", ".bin", StringComparison.Ordinal));
+        await versionBlob.UploadAsync(new MemoryStream(bytes, writable: false), overwrite: true, cancellationToken);
 
         await PutMetadataAsync(CloudStorageSupport.VersionMetadataKey(rootFolder, key, version), stored, cancellationToken);
         await PutMetadataAsync(CloudStorageSupport.MetadataKey(rootFolder, key), stored, cancellationToken);
@@ -78,8 +80,7 @@ public sealed class AzureBlobFileStorage : IVersionedFileStorage
         if (metadata is null)
             throw new StorageException("STORAGE-VERSION-MISSING-001", $"Version {version} of '{key}' does not exist.");
 
-        BlobClient blob = container.GetBlobClient(CloudStorageSupport.Prefix(rootFolder, key));
-        BlobDownloadOptions options = new() { Conditions = new BlobRequestConditions { IfMatch = new Azure.ETag(metadata.Metadata.TryGetValue("StorageETag", out string? etag) ? etag : Azure.ETag.All.ToString()) } };
+        BlobClient blob = container.GetBlobClient(CloudStorageSupport.VersionMetadataKey(rootFolder, key, version).Replace(".json", ".bin", StringComparison.Ordinal));
         try
         {
             BlobDownloadInfo download = await blob.DownloadAsync(cancellationToken);
@@ -164,10 +165,8 @@ public sealed class AzureBlobFileStorage : IVersionedFileStorage
         try
         {
             BlobDownloadInfo download = await blob.DownloadAsync(cancellationToken);
-            string json = await BinaryData.FromStreamAsync(download.Content).ConfigureAwait(false) is BinaryData data
-                ? data.ToString()
-                : string.Empty;
-            return CloudStorageSupport.Deserialize(json);
+            BinaryData data = await BinaryData.FromStreamAsync(download.Content);
+            return CloudStorageSupport.Deserialize(data.ToString());
         }
         catch (Azure.RequestFailedException ex) when (ex.Status == (int)HttpStatusCode.NotFound)
         {
