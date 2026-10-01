@@ -115,7 +115,7 @@ public sealed class AmazonS3FileStorage : IVersionedFileStorage
                 StoredFile? value = await GetJsonMetadataAsync(item.Key, cancellationToken);
                 if (value is not null) values.Add(value);
             }
-            token = response.IsTruncated ? response.NextContinuationToken : null;
+            token = response.IsTruncated == true ? response.NextContinuationToken : null;
         } while (token is not null);
         return values.OrderByDescending(item => item.Version).ToArray();
     }
