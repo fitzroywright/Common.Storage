@@ -3,7 +3,9 @@ namespace Common.Storage;
 public sealed class NetworkFolderStorage :
     IVersionedFileStorage,
     IStorageMaintenance,
-    IStorageLifecycle
+    IStorageLifecycle,
+    IStorageQuery,
+    IStorageMetadataEditor
 {
     private readonly string rootPath;
 
@@ -24,6 +26,12 @@ public sealed class NetworkFolderStorage :
 
     public Task<IReadOnlyList<StoredFile>> GetVersionsAsync(string storageKey, CancellationToken cancellationToken = default) =>
         CreateInner().GetVersionsAsync(storageKey, cancellationToken);
+
+    public Task<IReadOnlyList<StoredFile>> ListAsync(StorageListRequest? request = null, CancellationToken cancellationToken = default) =>
+        CreateInner().ListAsync(request, cancellationToken);
+
+    public Task<StoredFile> UpdateMetadataAsync(string storageKey, StorageMetadataUpdate update, CancellationToken cancellationToken = default) =>
+        CreateInner().UpdateMetadataAsync(storageKey, update, cancellationToken);
 
     public Task DeleteAsync(string storageKey, CancellationToken cancellationToken = default) =>
         CreateInner().DeleteAsync(storageKey, cancellationToken);
