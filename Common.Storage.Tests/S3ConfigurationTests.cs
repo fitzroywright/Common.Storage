@@ -88,10 +88,23 @@ public sealed class S3ConfigurationTests
     [InlineData("../escape")]
     [InlineData("folder/../escape")]
     [InlineData("folder:bad")]
-    public void ProviderNeutralKeyValidation_RejectsUnsafeKeys(string key)
+    public async Task ProviderNeutralKeyValidation_RejectsUnsafeKeys(string key)
     {
-        StorageException exception = Assert.Throws<StorageException>(() =>
-            CloudStorageSupport.NormalizeKey(key));
+        S3FileStorage storage = new(new S3StorageOptions(
+            "unused-test-bucket",
+            "us-east-1",
+            Endpoint: "http://127.0.0.1:1",
+            ForcePathStyle: true,
+            RequireHttps: false));
+        await using MemoryStream stream = new([1], writable: false);
+
+        StorageException exception = await Assert.ThrowsAsync<StorageException>(() =>
+            storage.StoreAsync(new StorageWriteRequest(
+                key,
+                stream,
+                "application/octet-stream",
+                "test.bin",
+                "S3ConfigurationTests")));
 
         Assert.StartsWith("STORAGE-PATH-", exception.Code);
     }
