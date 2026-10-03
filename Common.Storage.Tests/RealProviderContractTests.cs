@@ -47,25 +47,37 @@ public sealed class RealProviderContractTests
             "SharePoint");
     }
 
-    [ExternalProviderFact("COMMON_STORAGE_S3_BUCKET", "Configure it to run the optional real S3-compatible proof.")]
+    [ExternalProviderFact(
+        "COMMON_STORAGE_S3_ENDPOINT,COMMON_STORAGE_S3_BUCKET,COMMON_STORAGE_S3_ACCESS_KEY_ID,COMMON_STORAGE_S3_SECRET_ACCESS_KEY",
+        "Configure a dedicated TrueNAS or other S3-compatible test target.")]
     public Task S3Compatible_RealProviderContract()
     {
         string bucket = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_BUCKET")!;
-        string? endpoint = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_ENDPOINT");
+        string endpoint = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_ENDPOINT")!;
         string region = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_REGION") ?? "us-east-1";
-        string? accessKey = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_ACCESS_KEY_ID");
-        string? secretKey = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_SECRET_ACCESS_KEY");
+        string accessKey = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_ACCESS_KEY_ID")!;
+        string secretKey = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_SECRET_ACCESS_KEY")!;
         string rootFolder = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_ROOT_FOLDER") ?? "aegis/common-storage-proof";
+        bool forcePathStyle = ReadBool("COMMON_STORAGE_S3_FORCE_PATH_STYLE", true);
+        bool requireHttps = ReadBool("COMMON_STORAGE_S3_REQUIRE_HTTPS", true);
 
         return RunContractAsync(
-            () => new AmazonS3FileStorage(new AmazonS3StorageOptions(
+            () => new S3FileStorage(new S3StorageOptions(
                 bucket,
                 region,
                 rootFolder,
                 accessKey,
                 secretKey,
-                endpoint)),
+                endpoint,
+                forcePathStyle,
+                requireHttps)),
             "S3-compatible");
+    }
+
+    private static bool ReadBool(string name, bool fallback)
+    {
+        string? value = Environment.GetEnvironmentVariable(name);
+        return bool.TryParse(value, out bool parsed) ? parsed : fallback;
     }
 
     private static async Task RunContractAsync(
