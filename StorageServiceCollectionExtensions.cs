@@ -15,6 +15,8 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<IVersionedFileStorage>(provider => provider.GetRequiredService<LocalFileStorage>());
         services.AddSingleton<IStorageMaintenance>(provider => provider.GetRequiredService<LocalFileStorage>());
         services.AddSingleton<IStorageLifecycle>(provider => provider.GetRequiredService<LocalFileStorage>());
+        services.AddSingleton<IStorageQuery>(provider => provider.GetRequiredService<LocalFileStorage>());
+        services.AddSingleton<IStorageMetadataEditor>(provider => provider.GetRequiredService<LocalFileStorage>());
         services.AddScoped<IDiagnosticCheck, CommonStorageDiagnosticCheck>();
         services.AddScoped<IDependencyDiagnosticProbe, CommonStorageDependencyProbe>();
         services.AddSingleton<IDiagnosticLevelLocalTest>(_ => new StorageRootExistsDiagnosticLevelTest(rootPath));
@@ -77,6 +79,10 @@ public static class StorageServiceCollectionExtensions
             services.AddSingleton<IStorageMaintenance>(provider => (IStorageMaintenance)provider.GetRequiredService<TProvider>());
         if (typeof(IStorageLifecycle).IsAssignableFrom(typeof(TProvider)))
             services.AddSingleton<IStorageLifecycle>(provider => (IStorageLifecycle)provider.GetRequiredService<TProvider>());
+        if (typeof(IStorageQuery).IsAssignableFrom(typeof(TProvider)))
+            services.AddSingleton<IStorageQuery>(provider => (IStorageQuery)provider.GetRequiredService<TProvider>());
+        if (typeof(IStorageMetadataEditor).IsAssignableFrom(typeof(TProvider)))
+            services.AddSingleton<IStorageMetadataEditor>(provider => (IStorageMetadataEditor)provider.GetRequiredService<TProvider>());
 
         AddProviderDiagnostics(services);
         return services;
@@ -95,6 +101,10 @@ public static class StorageServiceCollectionExtensions
             services.AddSingleton<IStorageMaintenance>(maintenance);
         if (storage is IStorageLifecycle lifecycle)
             services.AddSingleton<IStorageLifecycle>(lifecycle);
+        if (storage is IStorageQuery query)
+            services.AddSingleton<IStorageQuery>(query);
+        if (storage is IStorageMetadataEditor metadataEditor)
+            services.AddSingleton<IStorageMetadataEditor>(metadataEditor);
 
         services.AddSingleton<IDiagnosticLevelLocalTest>(_ => new StorageRootExistsDiagnosticLevelTest(rootPath));
         services.AddSingleton<IDiagnosticLevelLocalTest>(_ => new StorageRootReadableDiagnosticLevelTest(rootPath));
@@ -111,6 +121,10 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<IFileStorage>(storage);
         if (storage is IVersionedFileStorage versioned)
             services.AddSingleton<IVersionedFileStorage>(versioned);
+        if (storage is IStorageQuery query)
+            services.AddSingleton<IStorageQuery>(query);
+        if (storage is IStorageMetadataEditor metadataEditor)
+            services.AddSingleton<IStorageMetadataEditor>(metadataEditor);
         AddProviderDiagnostics(services);
         return services;
     }
@@ -121,6 +135,8 @@ public static class StorageServiceCollectionExtensions
     {
         services.AddSingleton(storage);
         services.AddSingleton<IFileStorage>(storage);
+        services.AddSingleton<IStorageQuery>(storage);
+        services.AddSingleton<IStorageMetadataEditor>(storage);
         AddProviderDiagnostics(services);
         return services;
     }
