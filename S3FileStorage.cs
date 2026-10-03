@@ -16,6 +16,9 @@ public sealed class S3FileStorage : IVersionedFileStorage
         ArgumentNullException.ThrowIfNull(options);
         if (string.IsNullOrWhiteSpace(options.BucketName))
             throw new InvalidOperationException("S3-compatible storage requires BucketName.");
+        if (string.IsNullOrWhiteSpace(options.Region))
+            throw new InvalidOperationException("S3-compatible storage requires Region.");
+
         bucket = options.BucketName.Trim();
         rootFolder = options.RootFolder?.Trim('/') ?? string.Empty;
 
@@ -25,7 +28,12 @@ public sealed class S3FileStorage : IVersionedFileStorage
         };
         if (!string.IsNullOrWhiteSpace(options.Endpoint))
         {
-            config.ServiceURL = options.Endpoint;
+            if (!Uri.TryCreate(options.Endpoint, UriKind.Absolute, out Uri? endpoint))
+                throw new InvalidOperationException("S3-compatible storage Endpoint must be an absolute URI.");
+            if (options.RequireHttps && endpoint.Scheme != Uri.UriSchemeHttps)
+                throw new InvalidOperationException("S3-compatible storage Endpoint must use HTTPS when RequireHttps=true.");
+
+            config.ServiceURL = endpoint.AbsoluteUri.TrimEnd('/');
             config.ForcePathStyle = options.ForcePathStyle;
         }
 
