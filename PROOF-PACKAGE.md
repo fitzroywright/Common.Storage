@@ -85,3 +85,29 @@ The current public `IFileStorage` contract does **not** expose:
 Those are explicit requirements in the comprehensive proof package, so they cannot truthfully be marked proven by the current contract suite. Adding them should be done as additive provider-neutral contracts rather than leaking SharePoint, filesystem, or S3 semantics into applications.
 
 Permission-denied, authentication-failure, timeout/network-interruption and read-only-target proofs also require controlled real-provider fixtures and credentials. They must remain real integration tests rather than mocks if they are to satisfy the proof criteria.
+
+
+## Current proof status (2026-10-02)
+
+Completed with real providers:
+
+- baseline Common.Storage suite green;
+- real SMB/TrueNAS contract passed against `\\nas01\public\temp`;
+- SMB unavailable-path failure reproduced and recovery to the same real share passed;
+- real SharePoint/Microsoft Graph contract passed;
+- SharePoint invalid-secret failure produced `STORAGE-SHAREPOINT-AUTH-001` and recovery with the restored secret passed.
+
+Hardening added after the SMB unavailable-path proof:
+
+- `NetworkFolderStorage` no longer requires the remote root to be reachable during construction;
+- unavailable network roots are surfaced through `StorageHealth` as unavailable/not writable;
+- storage operations translate an unavailable network root to `StorageException` code `STORAGE-NETWORK-UNAVAILABLE-001`;
+- regression coverage protects the provider-neutral failure behavior.
+
+Intentionally deferred:
+
+- SMB reachable-but-read-only / permission-denied proof;
+- SharePoint valid identity with insufficient site/drive authorization;
+- broader interruption/timeout fault injection beyond the observed transient Graph timeout and successful retry.
+
+These deferred authorization tests are not counted as passed.
