@@ -52,6 +52,10 @@ public static class StorageServiceCollectionExtensions
                 services,
                 new AzureBlobFileStorage(options.AzureBlob
                     ?? throw new InvalidOperationException("AzureBlob storage requires AzureBlob options."))),
+            StorageTargetKind.S3 => AddCloudTarget(
+                services,
+                new S3FileStorage(options.S3
+                    ?? throw new InvalidOperationException("S3 storage requires S3 options."))),
             StorageTargetKind.AmazonS3 => AddCloudTarget(
                 services,
                 new AmazonS3FileStorage(options.AmazonS3
