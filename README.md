@@ -9,6 +9,8 @@ Shared .NET 10 storage component for application file storage.
 ## Implemented scope
 
 - Stable `IFileStorage` contract for store/read/delete/metadata/version history/health.
+- Additive `IStorageQuery` contract for bounded provider-neutral prefix enumeration.
+- Additive `IStorageMetadataEditor` contract for updating current custom metadata without rewriting object content or creating a new content version.
 - `IVersionedFileStorage` for opening historical versions and restoring an older version as a new current version.
 - `IStorageMaintenance` for stale temporary-file cleanup and configurable version retention.
 - `IStorageLifecycle` for an explicit irreversible purge that removes the current object and all historical versions.
@@ -79,6 +81,8 @@ services.AddCommonStorageProvider<MyStorageProvider>();
 ### SharePoint behavior
 
 The SharePoint provider resolves the configured site and document library through Microsoft Graph, creates missing folders, streams content through bounded temporary files for hashing/integrity verification, and keeps Common.Storage metadata under a reserved `.common-storage` folder below the configured root. Application-visible storage keys remain provider-neutral.
+
+Enumeration and metadata editing remain provider-neutral: consumers use `IStorageQuery` and `IStorageMetadataEditor` rather than provider APIs. Metadata edits affect only the current metadata record; immutable historical version metadata is not rewritten.
 
 The application registration must have Microsoft Graph access that permits read/write operations on the selected SharePoint site. Prefer scoping the application to only the intended site when the tenant's permission model supports that operationally.
 
@@ -163,4 +167,4 @@ Infrastructure-level backup/restore remains an operations responsibility for the
 
 ## Current maturity
 
-The local provider, versioning, concurrency controls, integrity checks, maintenance, purge lifecycle, health integration, safety protections, and automated tests are implemented on `main`. Remaining work is primarily infrastructure proof against the intended SMB/NFS/TrueNAS environment, especially cross-process locking, multi-node access/failover, and disappearance/recovery behavior.
+The local provider, versioning, concurrency controls, integrity checks, maintenance, purge lifecycle, health integration, safety protections, provider-neutral enumeration, independent current-metadata editing, and automated tests are implemented. Remaining work is primarily controlled authorization/fault proof against intended production targets, including read-only/permission-denied and broader interruption scenarios.

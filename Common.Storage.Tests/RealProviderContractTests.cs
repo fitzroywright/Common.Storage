@@ -114,11 +114,31 @@ public sealed class RealProviderContractTests
             Assert.Contains(versions, item => item.Version == 1);
             Assert.Contains(versions, item => item.Version == 2);
 
+            IStorageQuery query = Assert.IsAssignableFrom<IStorageQuery>(storage);
+            IReadOnlyList<StoredFile> listed = await query.ListAsync(new StorageListRequest(prefix, 10));
+            Assert.Contains(listed, item => item.StorageKey == key && item.Version == 2);
+
+            IStorageMetadataEditor metadataEditor = Assert.IsAssignableFrom<IStorageMetadataEditor>(storage);
+            StoredFile edited = await metadataEditor.UpdateMetadataAsync(
+                key,
+                new StorageMetadataUpdate(
+                    new Dictionary<string, string>
+                    {
+                        ["ProofEdited"] = "true"
+                    }));
+            Assert.Equal(2, edited.Version);
+            Assert.Equal("true", edited.Metadata["ProofEdited"]);
+
+            IReadOnlyList<StoredFile> historicalAfterEdit = await storage.GetVersionsAsync(key);
+            StoredFile historicalVersionTwo = Assert.Single(historicalAfterEdit, item => item.Version == 2);
+            Assert.False(historicalVersionTwo.Metadata.ContainsKey("ProofEdited"));
+
             // Recreate the provider to prove identity/persistence is not in-memory only.
             storage = createProvider();
             StoredFile? afterReconnect = await storage.GetMetadataAsync(key);
             Assert.NotNull(afterReconnect);
             Assert.Equal(2, afterReconnect!.Version);
+            Assert.Equal("true", afterReconnect.Metadata["ProofEdited"]);
             await AssertContentAsync(storage, key, secondPayload);
 
             await storage.DeleteAsync(key);

@@ -7,7 +7,7 @@ using System.Text.Json;
 
 namespace Common.Storage;
 
-public sealed class SharePointFileStorage : IFileStorage
+public sealed class SharePointFileStorage : IFileStorage, IStorageQuery, IStorageMetadataEditor
 {
     private const string GraphBase = "https://graph.microsoft.com/v1.0";
     private const int BufferSize = 128 * 1024;
@@ -244,6 +244,118 @@ public sealed class SharePointFileStorage : IFileStorage
         }
 
         return versions.OrderByDescending(x => x.Version).ToArray();
+    }
+
+    public async Task<IReadOnlyList<StoredFile>> ListAsync(
+        StorageListRequest? request = null,
+        CancellationToken cancellationToken = default)
+    {
+        StorageListRequest resolved = request ?? new StorageListRequest();
+        if (resolved.MaximumResults <= 0)
+            throw new ArgumentOutOfRangeException(nameof(request), "MaximumResults must be positive.");
+
+        string? logicalPrefix = string.IsNullOrWhiteSpace(resolved.Prefix)
+            ? null
+            : NormalizeKey(resolved.Prefix);
+
+        await EnsureTargetAsync(cancellationToken).ConfigureAwait(false);
+        string metadataFolder = CombinePath(MetadataRoot, "metadata");
+        string? nextUrl = DriveChildrenUrl(metadataFolder);
+        List<StoredFile> values = [];
+
+        while (!string.IsNullOrWhiteSpace(nextUrl) && values.Count < resolved.MaximumResults)
+        {
+            HttpResponseMessage response = await SendGraphAsync(
+                HttpMethod.Get,
+                nextUrl,
+                null,
+                cancellationToken).ConfigureAwait(false);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                response.Dispose();
+                return values;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                string detail = await SafeReadBodyAsync(response, cancellationToken).ConfigureAwait(false);
+                response.Dispose();
+                throw new StorageException("STORAGE-SHAREPOINT-LIST-001", $"Unable to enumerate storage metadata: {detail}");
+            }
+
+            using JsonDocument document = JsonDocument.Parse(
+                await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
+            response.Dispose();
+
+            if (document.RootElement.TryGetProperty("value", out JsonElement items))
+            {
+                foreach (JsonElement item in items.EnumerateArray())
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!item.TryGetProperty("name", out JsonElement nameElement))
+                        continue;
+                    string? name = nameElement.GetString();
+                    if (string.IsNullOrWhiteSpace(name) ||
+                        !name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    StoredFile? stored = await GetJsonAsync<StoredFile>(
+                        CombinePath(metadataFolder, name),
+                        cancellationToken).ConfigureAwait(false);
+                    if (stored is null)
+                        continue;
+                    if (logicalPrefix is not null &&
+                        !stored.StorageKey.StartsWith(logicalPrefix, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    values.Add(stored);
+                    if (values.Count >= resolved.MaximumResults)
+                        break;
+                }
+            }
+
+            nextUrl = document.RootElement.TryGetProperty("@odata.nextLink", out JsonElement next)
+                ? next.GetString()
+                : null;
+        }
+
+        return values.OrderBy(item => item.StorageKey, StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    public async Task<StoredFile> UpdateMetadataAsync(
+        string storageKey,
+        StorageMetadataUpdate update,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        ArgumentNullException.ThrowIfNull(update.Metadata);
+
+        string key = NormalizeKey(storageKey);
+        SemaphoreSlim keyLock = keyLocks.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
+        await keyLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            StoredFile current = await GetMetadataCoreAsync(key, cancellationToken).ConfigureAwait(false)
+                ?? throw new StorageException("STORAGE-MISSING-001", $"Stored file '{key}' does not exist.");
+
+            Dictionary<string, string> metadata = update.Replace
+                ? new Dictionary<string, string>(
+                    current.Metadata.Where(pair =>
+                        pair.Key is "StorageProvider" or "StorageDriveId" or "StorageItemId" or "StorageETag"),
+                    StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(current.Metadata, StringComparer.OrdinalIgnoreCase);
+            foreach ((string name, string value) in update.Metadata)
+                metadata[name] = value;
+
+            StoredFile updated = current with { Metadata = StorageMetadata.Freeze(metadata) };
+            await PutJsonAsync(CurrentMetadataPath(key), updated, cancellationToken).ConfigureAwait(false);
+            return updated;
+        }
+        finally
+        {
+            keyLock.Release();
+        }
     }
 
     public async Task DeleteAsync(string storageKey, CancellationToken cancellationToken = default)

@@ -99,6 +99,45 @@ public sealed class ApplicationScopedFileStorage
         }
     }
 
+    public async Task<IReadOnlyList<StoredFile>> ListAsync(
+        StorageListRequest? request = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (storage is not IStorageQuery query)
+            throw new StorageException("STORAGE-CAPABILITY-001", "The configured storage provider does not support object enumeration.");
+
+        StorageListRequest resolved = request ?? new StorageListRequest();
+        IReadOnlyList<StoredFile> values = await query.ListAsync(resolved, cancellationToken).ConfigureAwait(false);
+        return values
+            .Where(IsOwned)
+            .Take(resolved.MaximumResults)
+            .ToArray();
+    }
+
+    public async Task<StoredFile> UpdateMetadataAsync(
+        string storageKey,
+        StorageMetadataUpdate update,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        if (storage is not IStorageMetadataEditor editor)
+            throw new StorageException("STORAGE-CAPABILITY-002", "The configured storage provider does not support metadata updates.");
+
+        StoredFile? current = await storage.GetMetadataAsync(storageKey, cancellationToken).ConfigureAwait(false);
+        if (current is null)
+            throw new StorageException("STORAGE-MISSING-001", $"Stored file '{storageKey}' does not exist.");
+        EnsureOwned(current);
+
+        Dictionary<string, string> metadata = new(update.Metadata, StringComparer.OrdinalIgnoreCase)
+        {
+            [ApplicationMetadataKey] = applicationId
+        };
+        return await editor.UpdateMetadataAsync(
+            storageKey,
+            update with { Metadata = metadata },
+            cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task DeleteAsync(
         string storageKey,
         CancellationToken cancellationToken = default)
@@ -149,10 +188,13 @@ public sealed class ApplicationScopedFileStorage
         }
     }
 
+    private bool IsOwned(StoredFile metadata) =>
+        metadata.Metadata.TryGetValue(ApplicationMetadataKey, out string? owner) &&
+        string.Equals(owner, applicationId, StringComparison.OrdinalIgnoreCase);
+
     private void EnsureOwned(StoredFile metadata)
     {
-        if (!metadata.Metadata.TryGetValue(ApplicationMetadataKey, out string? owner) ||
-            !string.Equals(owner, applicationId, StringComparison.OrdinalIgnoreCase))
+        if (!IsOwned(metadata))
         {
             throw new StorageException(
                 "STORAGE-OWNER-002",

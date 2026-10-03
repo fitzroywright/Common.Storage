@@ -39,6 +39,29 @@ public sealed record StorageHealth(
     string Root,
     string? Error = null);
 
+public sealed record StorageListRequest(
+    string? Prefix = null,
+    int MaximumResults = 1000);
+
+public sealed record StorageMetadataUpdate(
+    IReadOnlyDictionary<string, string> Metadata,
+    bool Replace = false);
+
+public interface IStorageQuery
+{
+    Task<IReadOnlyList<StoredFile>> ListAsync(
+        StorageListRequest? request = null,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IStorageMetadataEditor
+{
+    Task<StoredFile> UpdateMetadataAsync(
+        string storageKey,
+        StorageMetadataUpdate update,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IFileStorage
 {
     Task<StoredFile> StoreAsync(StorageWriteRequest request, CancellationToken cancellationToken = default);

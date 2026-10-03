@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace Common.Storage;
 
-public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenance, IStorageLifecycle
+public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenance, IStorageLifecycle, IStorageQuery, IStorageMetadataEditor
 {
     private const int BufferSize = 128 * 1024;
     private const int InterprocessLockRetryMilliseconds = 25;
@@ -79,6 +79,88 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
             if (item is not null) versions.Add(item);
         }
         return versions;
+    }
+
+    public async Task<IReadOnlyList<StoredFile>> ListAsync(
+        StorageListRequest? request = null,
+        CancellationToken cancellationToken = default)
+    {
+        StorageListRequest resolved = request ?? new StorageListRequest();
+        if (resolved.MaximumResults <= 0)
+            throw new ArgumentOutOfRangeException(nameof(request), "MaximumResults must be positive.");
+
+        string? prefix = string.IsNullOrWhiteSpace(resolved.Prefix)
+            ? null
+            : NormalizeKey(resolved.Prefix);
+
+        List<StoredFile> items = [];
+        foreach (string path in Directory.EnumerateFiles(rootPath, "*.json", SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string relative = Path.GetRelativePath(rootPath, path);
+            if (relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Any(segment => segment.EndsWith(".versions", StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            string contentPath = path[..^".json".Length];
+            if (!File.Exists(contentPath))
+                continue;
+
+            StoredFile? item = await ReadMetadataAsync(path, cancellationToken);
+            if (item is null)
+                continue;
+            if (prefix is not null &&
+                !item.StorageKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            items.Add(item);
+            if (items.Count >= resolved.MaximumResults)
+                break;
+        }
+
+        return items
+            .OrderBy(item => item.StorageKey, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public async Task<StoredFile> UpdateMetadataAsync(
+        string storageKey,
+        StorageMetadataUpdate update,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        ArgumentNullException.ThrowIfNull(update.Metadata);
+
+        string normalizedKey = NormalizeKey(storageKey);
+        SemaphoreSlim keyLock = keyLocks.GetOrAdd(normalizedKey, static _ => new SemaphoreSlim(1, 1));
+        await keyLock.WaitAsync(cancellationToken);
+        try
+        {
+            string path = ResolveLogicalPath(normalizedKey);
+            if (!File.Exists(path))
+                throw new StorageException("STORAGE-MISSING-001", $"Stored file '{storageKey}' does not exist.");
+
+            string versionsPath = path + ".versions";
+            Directory.CreateDirectory(versionsPath);
+            await using FileStream interprocessLock = await AcquireInterprocessLockAsync(versionsPath, cancellationToken);
+
+            StoredFile current = await ReadMetadataAsync(path + ".json", cancellationToken)
+                ?? throw new StorageException("STORAGE-MISSING-001", $"Stored metadata for '{storageKey}' does not exist.");
+
+            Dictionary<string, string> metadata = update.Replace
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(current.Metadata, StringComparer.OrdinalIgnoreCase);
+            foreach ((string key, string value) in update.Metadata)
+                metadata[key] = value;
+
+            StoredFile updated = current with { Metadata = StorageMetadata.Freeze(metadata) };
+            await WriteMetadataAsync(path + ".json", updated, cancellationToken);
+            return updated;
+        }
+        finally
+        {
+            keyLock.Release();
+        }
     }
 
     public async Task DeleteAsync(string storageKey, CancellationToken cancellationToken = default)

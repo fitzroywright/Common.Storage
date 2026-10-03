@@ -4,7 +4,7 @@ namespace Common.Storage;
 /// Backward-compatible adapter for deployments still configured as AmazonS3.
 /// New deployments should use the provider-neutral S3 target and <see cref="S3FileStorage"/>.
 /// </summary>
-public sealed class AmazonS3FileStorage : IVersionedFileStorage
+public sealed class AmazonS3FileStorage : IVersionedFileStorage, IStorageQuery, IStorageMetadataEditor
 {
     private readonly S3FileStorage inner;
 
@@ -25,6 +25,12 @@ public sealed class AmazonS3FileStorage : IVersionedFileStorage
 
     public Task<IReadOnlyList<StoredFile>> GetVersionsAsync(string storageKey, CancellationToken cancellationToken = default) =>
         inner.GetVersionsAsync(storageKey, cancellationToken);
+
+    public Task<IReadOnlyList<StoredFile>> ListAsync(StorageListRequest? request = null, CancellationToken cancellationToken = default) =>
+        inner.ListAsync(request, cancellationToken);
+
+    public Task<StoredFile> UpdateMetadataAsync(string storageKey, StorageMetadataUpdate update, CancellationToken cancellationToken = default) =>
+        inner.UpdateMetadataAsync(storageKey, update, cancellationToken);
 
     public Task DeleteAsync(string storageKey, CancellationToken cancellationToken = default) =>
         inner.DeleteAsync(storageKey, cancellationToken);

@@ -4,7 +4,7 @@ using System.Net;
 
 namespace Common.Storage;
 
-public sealed class AzureBlobFileStorage : IVersionedFileStorage
+public sealed class AzureBlobFileStorage : IVersionedFileStorage, IStorageQuery, IStorageMetadataEditor
 {
     private readonly BlobContainerClient container;
     private readonly string rootFolder;
@@ -122,6 +122,63 @@ public sealed class AzureBlobFileStorage : IVersionedFileStorage
             if (value is not null) values.Add(value);
         }
         return values.OrderByDescending(item => item.Version).ToArray();
+    }
+
+    public async Task<IReadOnlyList<StoredFile>> ListAsync(
+        StorageListRequest? request = null,
+        CancellationToken cancellationToken = default)
+    {
+        StorageListRequest resolved = request ?? new StorageListRequest();
+        if (resolved.MaximumResults <= 0)
+            throw new ArgumentOutOfRangeException(nameof(request), "MaximumResults must be positive.");
+
+        string? logicalPrefix = string.IsNullOrWhiteSpace(resolved.Prefix)
+            ? null
+            : CloudStorageSupport.NormalizeKey(resolved.Prefix);
+        string metadataPrefix = CloudStorageSupport.Prefix(rootFolder, "__commonstorage/metadata") + "/";
+
+        List<StoredFile> values = [];
+        await foreach (BlobItem item in container.GetBlobsAsync(BlobTraits.None, BlobStates.None, metadataPrefix, cancellationToken))
+        {
+            if (!item.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            StoredFile? value = await GetJsonMetadataAsync(item.Name, cancellationToken);
+            if (value is null)
+                continue;
+            if (logicalPrefix is not null &&
+                !value.StorageKey.StartsWith(logicalPrefix, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            values.Add(value);
+            if (values.Count >= resolved.MaximumResults)
+                break;
+        }
+
+        return values.OrderBy(item => item.StorageKey, StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    public async Task<StoredFile> UpdateMetadataAsync(
+        string storageKey,
+        StorageMetadataUpdate update,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        ArgumentNullException.ThrowIfNull(update.Metadata);
+
+        string key = CloudStorageSupport.NormalizeKey(storageKey);
+        StoredFile current = await GetMetadataAsync(key, cancellationToken)
+            ?? throw new StorageException("STORAGE-MISSING-001", $"Stored file '{key}' does not exist.");
+
+        Dictionary<string, string> metadata = update.Replace
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(current.Metadata, StringComparer.OrdinalIgnoreCase);
+        foreach ((string name, string value) in update.Metadata)
+            metadata[name] = value;
+
+        StoredFile updated = current with { Metadata = StorageMetadata.Freeze(metadata) };
+        await PutMetadataAsync(CloudStorageSupport.MetadataKey(rootFolder, key), updated, cancellationToken);
+        return updated;
     }
 
     public async Task DeleteAsync(string storageKey, CancellationToken cancellationToken = default)

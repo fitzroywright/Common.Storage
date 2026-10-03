@@ -15,6 +15,10 @@ For SMB, SharePoint, and optional S3-compatible targets the same provider-neutra
 - version metadata retrieval;
 - provider re-instantiation followed by lookup/read, proving persistence is not only in-memory;
 - delete and post-delete missing behavior;
+- provider-neutral prefix enumeration;
+- standalone current-metadata update without content rewrite or version creation;
+- persistence of metadata edits across provider re-instantiation;
+- preservation of immutable historical version metadata after current-metadata edits;
 - cleanup of the proof object.
 
 The tests use the public `IFileStorage` contract. No application-specific behavior is required.
@@ -75,16 +79,11 @@ The current code already registers:
 - `CommonStorageDependencyProbe`;
 - the ASP.NET Core `common-storage` health check.
 
-## Gaps that prevent declaring Common.Storage fully proven
+## Remaining proof gaps
 
-The current public `IFileStorage` contract does **not** expose:
+Provider-neutral enumeration is exposed through `IStorageQuery`, and standalone current-metadata editing is exposed through `IStorageMetadataEditor`. Both are additive capabilities so existing `IFileStorage` implementations remain source-compatible.
 
-1. provider-neutral enumeration/list/query of objects;
-2. standalone metadata update without rewriting the object.
-
-Those are explicit requirements in the comprehensive proof package, so they cannot truthfully be marked proven by the current contract suite. Adding them should be done as additive provider-neutral contracts rather than leaking SharePoint, filesystem, or S3 semantics into applications.
-
-Permission-denied, authentication-failure, timeout/network-interruption and read-only-target proofs also require controlled real-provider fixtures and credentials. They must remain real integration tests rather than mocks if they are to satisfy the proof criteria.
+Permission-denied, authentication-failure, timeout/network-interruption and read-only-target proofs still require controlled real-provider fixtures and credentials. They must remain real integration tests rather than mocks if they are to satisfy the proof criteria.
 
 
 ## Current proof status (2026-10-02)
@@ -95,7 +94,9 @@ Completed with real providers:
 - real SMB/TrueNAS contract passed against `\\nas01\public\temp`;
 - SMB unavailable-path failure reproduced and recovery to the same real share passed;
 - real SharePoint/Microsoft Graph contract passed;
-- SharePoint invalid-secret failure produced `STORAGE-SHAREPOINT-AUTH-001` and recovery with the restored secret passed.
+- SharePoint invalid-secret failure produced `STORAGE-SHAREPOINT-AUTH-001` and recovery with the restored secret passed;
+- real S3-compatible contract passed against TrueNAS/SeaweedFS;
+- the real-provider contract now also proves prefix enumeration and independent metadata update for supported targets.
 
 Hardening added after the SMB unavailable-path proof:
 
