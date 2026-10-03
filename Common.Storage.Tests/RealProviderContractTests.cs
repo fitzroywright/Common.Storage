@@ -19,9 +19,9 @@ public sealed class RealProviderContractTests
         "Also configure either COMMON_STORAGE_SHAREPOINT_SITE_ID or COMMON_STORAGE_SHAREPOINT_HOST_NAME.")]
     public Task SharePoint_RealProviderContract()
     {
-        string? tenantId = Environment.GetEnvironmentVariable("COMMON_STORAGE_SHAREPOINT_TENANT_ID");
-        string? clientId = Environment.GetEnvironmentVariable("COMMON_STORAGE_SHAREPOINT_CLIENT_ID");
-        string? clientSecret = Environment.GetEnvironmentVariable("COMMON_STORAGE_SHAREPOINT_CLIENT_SECRET");
+        string tenantId = Environment.GetEnvironmentVariable("COMMON_STORAGE_SHAREPOINT_TENANT_ID")!;
+        string clientId = Environment.GetEnvironmentVariable("COMMON_STORAGE_SHAREPOINT_CLIENT_ID")!;
+        string clientSecret = Environment.GetEnvironmentVariable("COMMON_STORAGE_SHAREPOINT_CLIENT_SECRET")!;
         string? siteId = Environment.GetEnvironmentVariable("COMMON_STORAGE_SHAREPOINT_SITE_ID");
         string? hostName = Environment.GetEnvironmentVariable("COMMON_STORAGE_SHAREPOINT_HOST_NAME");
         string sitePath = Environment.GetEnvironmentVariable("COMMON_STORAGE_SHAREPOINT_SITE_PATH") ?? string.Empty;
@@ -50,7 +50,7 @@ public sealed class RealProviderContractTests
     [ExternalProviderFact("COMMON_STORAGE_S3_BUCKET", "Configure it to run the optional real S3-compatible proof.")]
     public Task S3Compatible_RealProviderContract()
     {
-        string? bucket = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_BUCKET");
+        string bucket = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_BUCKET")!;
         string? endpoint = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_ENDPOINT");
         string region = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_REGION") ?? "us-east-1";
         string? accessKey = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_ACCESS_KEY_ID");
