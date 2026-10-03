@@ -340,7 +340,10 @@ public sealed class SharePointFileStorage : IFileStorage, IStorageQuery, IStorag
                 ?? throw new StorageException("STORAGE-MISSING-001", $"Stored file '{key}' does not exist.");
 
             Dictionary<string, string> metadata = update.Replace
-                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                ? new Dictionary<string, string>(
+                    current.Metadata.Where(pair =>
+                        pair.Key is "StorageProvider" or "StorageDriveId" or "StorageItemId" or "StorageETag"),
+                    StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, string>(current.Metadata, StringComparer.OrdinalIgnoreCase);
             foreach ((string name, string value) in update.Metadata)
                 metadata[name] = value;
