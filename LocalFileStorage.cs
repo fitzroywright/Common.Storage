@@ -102,13 +102,15 @@ public sealed class LocalFileStorage : IVersionedFileStorage, IStorageMaintenanc
                 .Any(segment => segment.EndsWith(".versions", StringComparison.OrdinalIgnoreCase)))
                 continue;
 
+            string contentPath = path[..^".json".Length];
+            if (!File.Exists(contentPath))
+                continue;
+
             StoredFile? item = await ReadMetadataAsync(path, cancellationToken);
             if (item is null)
                 continue;
             if (prefix is not null &&
                 !item.StorageKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                continue;
-            if (!File.Exists(ResolveLogicalPath(item.StorageKey)))
                 continue;
 
             items.Add(item);
