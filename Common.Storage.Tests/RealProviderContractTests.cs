@@ -130,7 +130,7 @@ public sealed class RealProviderContractTests
             Assert.Equal("true", edited.Metadata["ProofEdited"]);
 
             IReadOnlyList<StoredFile> historicalAfterEdit = await storage.GetVersionsAsync(key);
-            StoredFile historicalVersionTwo = Assert.Single(historicalAfterEdit.Where(item => item.Version == 2));
+            StoredFile historicalVersionTwo = Assert.Single(historicalAfterEdit, item => item.Version == 2);
             Assert.False(historicalVersionTwo.Metadata.ContainsKey("ProofEdited"));
 
             // Recreate the provider to prove identity/persistence is not in-memory only.
