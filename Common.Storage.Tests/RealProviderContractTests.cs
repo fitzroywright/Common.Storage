@@ -1,24 +1,22 @@
 using System.Text;
 using Xunit;
-using Xunit.Sdk;
 
 namespace Common.Storage.Tests;
 
 public sealed class RealProviderContractTests
 {
-    [Fact]
+    [ExternalProviderFact("COMMON_STORAGE_SMB_ROOT", "Supply a real writable SMB/UNC or mounted SMB path.")]
     public Task NetworkFolder_RealProviderContract()
     {
-        string? root = Environment.GetEnvironmentVariable("COMMON_STORAGE_SMB_ROOT");
-        if (string.IsNullOrWhiteSpace(root))
-            throw SkipException.ForSkip("COMMON_STORAGE_SMB_ROOT is not configured. Supply a real writable SMB/UNC or mounted SMB path.");
-
+        string root = Environment.GetEnvironmentVariable("COMMON_STORAGE_SMB_ROOT")!;
         return RunContractAsync(
             () => new NetworkFolderStorage(root),
             "SMB");
     }
 
-    [Fact]
+    [ExternalProviderFact(
+        "COMMON_STORAGE_SHAREPOINT_TENANT_ID,COMMON_STORAGE_SHAREPOINT_CLIENT_ID,COMMON_STORAGE_SHAREPOINT_CLIENT_SECRET",
+        "Also configure either COMMON_STORAGE_SHAREPOINT_SITE_ID or COMMON_STORAGE_SHAREPOINT_HOST_NAME.")]
     public Task SharePoint_RealProviderContract()
     {
         string? tenantId = Environment.GetEnvironmentVariable("COMMON_STORAGE_SHAREPOINT_TENANT_ID");
@@ -31,16 +29,9 @@ public sealed class RealProviderContractTests
         string? driveName = Environment.GetEnvironmentVariable("COMMON_STORAGE_SHAREPOINT_DRIVE_NAME");
         string rootFolder = Environment.GetEnvironmentVariable("COMMON_STORAGE_SHAREPOINT_ROOT_FOLDER") ?? "Aegis/Common.Storage.Proof";
 
-        if (string.IsNullOrWhiteSpace(tenantId) ||
-            string.IsNullOrWhiteSpace(clientId) ||
-            string.IsNullOrWhiteSpace(clientSecret) ||
-            (string.IsNullOrWhiteSpace(siteId) && string.IsNullOrWhiteSpace(hostName)))
-        {
-            throw SkipException.ForSkip(
-                "SharePoint proof requires COMMON_STORAGE_SHAREPOINT_TENANT_ID, COMMON_STORAGE_SHAREPOINT_CLIENT_ID, " +
-                "COMMON_STORAGE_SHAREPOINT_CLIENT_SECRET, and either COMMON_STORAGE_SHAREPOINT_SITE_ID or " +
-                "COMMON_STORAGE_SHAREPOINT_HOST_NAME.");
-        }
+        if (string.IsNullOrWhiteSpace(siteId) && string.IsNullOrWhiteSpace(hostName))
+            throw new InvalidOperationException(
+                "SharePoint proof requires either COMMON_STORAGE_SHAREPOINT_SITE_ID or COMMON_STORAGE_SHAREPOINT_HOST_NAME.");
 
         return RunContractAsync(
             () => new SharePointFileStorage(new SharePointStorageOptions(
@@ -56,7 +47,7 @@ public sealed class RealProviderContractTests
             "SharePoint");
     }
 
-    [Fact]
+    [ExternalProviderFact("COMMON_STORAGE_S3_BUCKET", "Configure it to run the optional real S3-compatible proof.")]
     public Task S3Compatible_RealProviderContract()
     {
         string? bucket = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_BUCKET");
@@ -65,9 +56,6 @@ public sealed class RealProviderContractTests
         string? accessKey = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_ACCESS_KEY_ID");
         string? secretKey = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_SECRET_ACCESS_KEY");
         string rootFolder = Environment.GetEnvironmentVariable("COMMON_STORAGE_S3_ROOT_FOLDER") ?? "aegis/common-storage-proof";
-
-        if (string.IsNullOrWhiteSpace(bucket))
-            throw SkipException.ForSkip("COMMON_STORAGE_S3_BUCKET is not configured. Configure it to run the optional real S3-compatible proof.");
 
         return RunContractAsync(
             () => new AmazonS3FileStorage(new AmazonS3StorageOptions(
