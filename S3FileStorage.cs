@@ -118,7 +118,12 @@ public sealed class S3FileStorage : IVersionedFileStorage, IStorageQuery, IStora
                 Prefix = prefix,
                 ContinuationToken = token
             }, cancellationToken);
-            foreach (S3Object item in response.S3Objects.Where(item => item.Key.EndsWith(".json", StringComparison.OrdinalIgnoreCase)))
+            // Some S3-compatible providers return a successful empty listing with a
+            // null S3Objects collection. Treat that as an empty page rather than
+            // allowing LINQ to throw while callers are recovering a missing version.
+            foreach (S3Object item in (response.S3Objects ?? []).Where(item =>
+                         !string.IsNullOrWhiteSpace(item.Key) &&
+                         item.Key.EndsWith(".json", StringComparison.OrdinalIgnoreCase)))
             {
                 StoredFile? value = await GetJsonMetadataAsync(item.Key, cancellationToken);
                 if (value is not null) values.Add(value);
@@ -152,7 +157,9 @@ public sealed class S3FileStorage : IVersionedFileStorage, IStorageQuery, IStora
                 ContinuationToken = token
             }, cancellationToken);
 
-            foreach (S3Object item in response.S3Objects.Where(item => item.Key.EndsWith(".json", StringComparison.OrdinalIgnoreCase)))
+            foreach (S3Object item in (response.S3Objects ?? []).Where(item =>
+                         !string.IsNullOrWhiteSpace(item.Key) &&
+                         item.Key.EndsWith(".json", StringComparison.OrdinalIgnoreCase)))
             {
                 StoredFile? value = await GetJsonMetadataAsync(item.Key, cancellationToken);
                 if (value is null)
