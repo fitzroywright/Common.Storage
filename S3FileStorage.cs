@@ -218,6 +218,7 @@ public sealed class S3FileStorage : IVersionedFileStorage, IStorageQuery, IStora
     public async Task<long> PurgeBucketAsync(CancellationToken cancellationToken = default)
     {
         long deleted = 0;
+        var previousVersionBatch = new HashSet<string>(StringComparer.Ordinal);
         // A versioned bucket needs explicit version-ID deletion: deleting the
         // current key would merely create another delete marker.
         for (;;)
@@ -233,6 +234,10 @@ public sealed class S3FileStorage : IVersionedFileStorage, IStorageQuery, IStora
                 .Where(v => !string.IsNullOrWhiteSpace(v.Key) && !string.IsNullOrWhiteSpace(v.VersionId))
                 .ToArray();
             if (versions.Length == 0) break;
+            var versionBatch = versions.Select(v => v.Key + "\\u0000" + v.VersionId).ToHashSet(StringComparer.Ordinal);
+            if (previousVersionBatch.SetEquals(versionBatch))
+                throw new StorageException("STORAGE-RESET-002", "S3 version deletion made no progress.");
+            previousVersionBatch = versionBatch;
             foreach (var version in versions)
             {
                 await client.DeleteObjectAsync(new DeleteObjectRequest
@@ -245,6 +250,7 @@ public sealed class S3FileStorage : IVersionedFileStorage, IStorageQuery, IStora
 
         // Handle unversioned S3-compatible backends (including SeaweedFS)
         // and any current objects omitted by their version-list implementation.
+        var previousObjectBatch = new HashSet<string>(StringComparer.Ordinal);
         for (;;)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -256,6 +262,9 @@ public sealed class S3FileStorage : IVersionedFileStorage, IStorageQuery, IStora
             var keys = (page.S3Objects ?? []).Select(v => v.Key)
                 .Where(key => !string.IsNullOrWhiteSpace(key)).ToArray();
             if (keys.Length == 0) break;
+            if (previousObjectBatch.SetEquals(keys))
+                throw new StorageException("STORAGE-RESET-003", "S3 object deletion made no progress.");
+            previousObjectBatch = keys.ToHashSet(StringComparer.Ordinal);
             foreach (var key in keys)
             {
                 await client.DeleteObjectAsync(bucket, key, cancellationToken);
