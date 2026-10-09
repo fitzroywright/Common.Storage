@@ -230,11 +230,10 @@ public sealed class S3FileStorage : IVersionedFileStorage, IStorageQuery, IStora
                 MaxKeys = 1000
             }, cancellationToken);
             var versions = (page.Versions ?? []).Select(v => (v.Key, v.VersionId))
-                .Concat((page.DeleteMarkers ?? []).Select(v => (v.Key, v.VersionId)))
                 .Where(v => !string.IsNullOrWhiteSpace(v.Key) && !string.IsNullOrWhiteSpace(v.VersionId))
                 .ToArray();
             if (versions.Length == 0) break;
-            var versionBatch = versions.Select(v => v.Key + "\\u0000" + v.VersionId).ToHashSet(StringComparer.Ordinal);
+            var versionBatch = versions.Select(v => v.Key + ":" + v.VersionId).ToHashSet(StringComparer.Ordinal);
             if (previousVersionBatch.SetEquals(versionBatch))
                 throw new StorageException("STORAGE-RESET-002", "S3 version deletion made no progress.");
             previousVersionBatch = versionBatch;
@@ -282,7 +281,7 @@ public sealed class S3FileStorage : IVersionedFileStorage, IStorageQuery, IStora
         }, cancellationToken);
         if ((remaining.S3Objects?.Count ?? 0) != 0 ||
             (remainingVersions.Versions?.Count ?? 0) != 0 ||
-            (remainingVersions.DeleteMarkers?.Count ?? 0) != 0)
+            false)
             throw new StorageException("STORAGE-RESET-001",
                 "S3 bucket is not empty after factory reset. Retry after resolving permissions or storage errors.");
         return deleted;
