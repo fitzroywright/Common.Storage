@@ -5,7 +5,7 @@ using System.Net;
 
 namespace Common.Storage;
 
-public sealed class S3FileStorage : IVersionedFileStorage, IStorageQuery, IStorageMetadataEditor
+public sealed class S3FileStorage : IVersionedFileStorage, IStorageQuery, IStorageMetadataEditor, IStorageBucketReset
 {
     private readonly IAmazonS3 client;
     private readonly string bucket;
@@ -207,6 +207,76 @@ public sealed class S3FileStorage : IVersionedFileStorage, IStorageQuery, IStora
         string key = CloudStorageSupport.NormalizeKey(storageKey);
         await client.DeleteObjectAsync(bucket, CloudStorageSupport.Prefix(rootFolder, key), cancellationToken);
         await client.DeleteObjectAsync(bucket, CloudStorageSupport.MetadataKey(rootFolder, key), cancellationToken);
+    }
+
+    /// <summary>
+    /// Remove every object in this dedicated bucket, including S3 version IDs and
+    /// delete markers. This intentionally ignores RootFolder because legacy/orphan
+    /// Studio objects can exist outside the configured logical prefix.
+    /// Requires ListBucket, ListBucketVersions, DeleteObject and DeleteObjectVersion.
+    /// </summary>
+    public async Task<long> PurgeBucketAsync(CancellationToken cancellationToken = default)
+    {
+        long deleted = 0;
+        // A versioned bucket needs explicit version-ID deletion: deleting the
+        // current key would merely create another delete marker.
+        for (;;)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var page = await client.ListVersionsAsync(new ListVersionsRequest
+            {
+                BucketName = bucket,
+                MaxKeys = 1000
+            }, cancellationToken);
+            var versions = (page.Versions ?? []).Select(v => (v.Key, v.VersionId))
+                .Concat((page.DeleteMarkers ?? []).Select(v => (v.Key, v.VersionId)))
+                .Where(v => !string.IsNullOrWhiteSpace(v.Key) && !string.IsNullOrWhiteSpace(v.VersionId))
+                .ToArray();
+            if (versions.Length == 0) break;
+            foreach (var version in versions)
+            {
+                await client.DeleteObjectAsync(new DeleteObjectRequest
+                {
+                    BucketName = bucket, Key = version.Key, VersionId = version.VersionId
+                }, cancellationToken);
+                deleted++;
+            }
+        }
+
+        // Handle unversioned S3-compatible backends (including SeaweedFS)
+        // and any current objects omitted by their version-list implementation.
+        for (;;)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var page = await client.ListObjectsV2Async(new ListObjectsV2Request
+            {
+                BucketName = bucket,
+                MaxKeys = 1000
+            }, cancellationToken);
+            var keys = (page.S3Objects ?? []).Select(v => v.Key)
+                .Where(key => !string.IsNullOrWhiteSpace(key)).ToArray();
+            if (keys.Length == 0) break;
+            foreach (var key in keys)
+            {
+                await client.DeleteObjectAsync(bucket, key, cancellationToken);
+                deleted++;
+            }
+        }
+
+        var remaining = await client.ListObjectsV2Async(new ListObjectsV2Request
+        {
+            BucketName = bucket, MaxKeys = 1
+        }, cancellationToken);
+        var remainingVersions = await client.ListVersionsAsync(new ListVersionsRequest
+        {
+            BucketName = bucket, MaxKeys = 1
+        }, cancellationToken);
+        if ((remaining.S3Objects?.Count ?? 0) != 0 ||
+            (remainingVersions.Versions?.Count ?? 0) != 0 ||
+            (remainingVersions.DeleteMarkers?.Count ?? 0) != 0)
+            throw new StorageException("STORAGE-RESET-001",
+                "S3 bucket is not empty after factory reset. Retry after resolving permissions or storage errors.");
+        return deleted;
     }
 
     public async Task<StorageHealth> CheckHealthAsync(CancellationToken cancellationToken = default)
