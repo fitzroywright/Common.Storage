@@ -32,3 +32,10 @@ public interface IStorageLifecycle
 {
     Task<StoragePurgeResult> PurgeAsync(string storageKey, CancellationToken cancellationToken = default);
 }
+
+
+/// <summary>Destructive bucket-wide operation. Only use for a verified dedicated application bucket.</summary>
+public interface IStorageBucketReset
+{
+    Task<long> PurgeBucketAsync(CancellationToken cancellationToken = default);
+}
