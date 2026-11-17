@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "dgSpecHash": "aPwSHX7nf8k=",
+  "success": true,
+  "projectFilePath": "D:\\Projects\\Common\\Common.Storage\\Common.Storage.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\apache.arrow\\22.1.0\\apache.arrow.22.1.0.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\awssdk.core\\4.1.1\\awssdk.core.4.1.1.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\awssdk.extensions.numerics\\4.1.0\\awssdk.extensions.numerics.4.1.0.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\awssdk.s3\\4.1.0.1\\awssdk.s3.4.1.0.1.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\azure.core\\1.60.0\\azure.core.1.60.0.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\azure.storage.blobs\\12.30.1\\azure.storage.blobs.12.30.1.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\azure.storage.common\\12.29.0\\azure.storage.common.12.29.0.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\microsoft.bcl.asyncinterfaces\\10.0.9\\microsoft.bcl.asyncinterfaces.10.0.9.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\microsoft.data.sqlite\\11.0.0\\microsoft.data.sqlite.11.0.0.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\microsoft.data.sqlite.core\\11.0.0\\microsoft.data.sqlite.core.11.0.0.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\microsoft.identity.client\\4.84.2\\microsoft.identity.client.4.84.2.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\microsoft.identity.client.extensions.msal\\4.84.2\\microsoft.identity.client.extensions.msal.4.84.2.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\microsoft.identitymodel.abstractions\\8.14.0\\microsoft.identitymodel.abstractions.8.14.0.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\sqlite\\3.53.4\\sqlite.3.53.4.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\sqlitepclraw.bundle_e_sqlite3\\3.0.5\\sqlitepclraw.bundle_e_sqlite3.3.0.5.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\sqlitepclraw.config.e_sqlite3\\3.0.5\\sqlitepclraw.config.e_sqlite3.3.0.5.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\sqlitepclraw.core\\3.0.5\\sqlitepclraw.core.3.0.5.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\sqlitepclraw.lib.e_sqlite3\\3.53.3\\sqlitepclraw.lib.e_sqlite3.3.53.3.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\sqlitepclraw.provider.e_sqlite3\\3.0.5\\sqlitepclraw.provider.e_sqlite3.3.0.5.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\system.clientmodel\\1.14.0\\system.clientmodel.1.14.0.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\system.io.hashing\\11.0.0\\system.io.hashing.11.0.0.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\system.memory.data\\10.0.9\\system.memory.data.10.0.9.nupkg.sha512",
+    "C:\\Users\\FWright.FFTPJ\\.nuget\\packages\\system.security.cryptography.protecteddata\\4.5.0\\system.security.cryptography.protecteddata.4.5.0.nupkg.sha512"
+  ],
+  "logs": []
+}

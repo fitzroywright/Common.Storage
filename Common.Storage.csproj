@@ -4,14 +4,15 @@
     <PackageId>Common.Storage</PackageId>
     <Description>Shared local-first file storage contracts and filesystem provider.</Description>
     <CommonRoot Condition="'$(CommonRoot)' == ''">$(MSBuildProjectDirectory)/..</CommonRoot>
+    <TargetFramework>net11.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="$(CommonRoot)/Common.Diagnostics/Common.Diagnostics.csproj" Condition="Exists('$(CommonRoot)/Common.Diagnostics/Common.Diagnostics.csproj')" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.30.0" />
-    <PackageReference Include="AWSSDK.S3" Version="4.0.103.4" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.30.1" />
+    <PackageReference Include="AWSSDK.S3" Version="4.1.0.1" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="Common.Storage.Tests/**/*.cs" />

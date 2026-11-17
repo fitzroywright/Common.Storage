@@ -1,0 +1,16 @@
+D:\Projects\Common\Common.Storage\bin\Debug\net10.0\Common.Storage.deps.json
+D:\Projects\Common\Common.Storage\bin\Debug\net10.0\Common.Storage.dll
+D:\Projects\Common\Common.Storage\bin\Debug\net10.0\Common.Storage.pdb
+D:\Projects\Common\Common.Storage\bin\Debug\net10.0\Common.Diagnostics.dll
+D:\Projects\Common\Common.Storage\bin\Debug\net10.0\Common.Diagnostics.pdb
+D:\Projects\Common\Common.Storage\obj\Debug\net10.0\Common.Storage.csproj.AssemblyReference.cache
+D:\Projects\Common\Common.Storage\obj\Debug\net10.0\Common.Storage.GeneratedMSBuildEditorConfig.editorconfig
+D:\Projects\Common\Common.Storage\obj\Debug\net10.0\Common.Storage.AssemblyInfoInputs.cache
+D:\Projects\Common\Common.Storage\obj\Debug\net10.0\Common.Storage.AssemblyInfo.cs
+D:\Projects\Common\Common.Storage\obj\Debug\net10.0\Common.Storage.csproj.CoreCompileInputs.cache
+D:\Projects\Common\Common.Storage\obj\Debug\net10.0\Common.Storage.sourcelink.json
+D:\Projects\Common\Common.Storage\obj\Debug\net10.0\Common.S.34172E0C.Up2Date
+D:\Projects\Common\Common.Storage\obj\Debug\net10.0\Common.Storage.dll
+D:\Projects\Common\Common.Storage\obj\Debug\net10.0\refint\Common.Storage.dll
+D:\Projects\Common\Common.Storage\obj\Debug\net10.0\Common.Storage.pdb
+D:\Projects\Common\Common.Storage\obj\Debug\net10.0\ref\Common.Storage.dll
