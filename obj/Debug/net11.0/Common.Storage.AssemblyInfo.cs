@@ -15,7 +15,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("Shared local-first file storage contracts and filesystem provider.")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4b22da7a4b43e1dfa3cc8d4908f010a26ca6d3cc")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fe7990fe95a578d658ef1c98e567f9bd0c094257")]
 [assembly: System.Reflection.AssemblyProductAttribute("Common.Storage")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Common.Storage")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
